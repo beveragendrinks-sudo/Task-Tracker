@@ -35,20 +35,26 @@ export default function Sidebar({ profile }: { profile: Profile }) {
   };
 
   return (
-    <aside className="w-64 bg-stone-900 text-stone-100 flex flex-col h-screen sticky top-0">
-      <div className="p-5 border-b border-stone-800">
-        <div className="flex items-center gap-2.5">
-          <div className="h-9 w-9 rounded-lg bg-gradient-to-br from-amber-600 to-amber-800 flex items-center justify-center">
-            <GanttChartSquare className="h-5 w-5 text-stone-900" />
+    <aside className="w-64 flex flex-col h-screen sticky top-0 shrink-0" style={{ background: 'var(--sidebar-bg)' }}>
+      {/* Logo */}
+      <div className="px-5 py-5" style={{ borderBottom: '1px solid var(--sidebar-border)' }}>
+        <div className="flex items-center gap-3">
+          <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-amber-500 to-amber-700 flex items-center justify-center shadow-lg shrink-0">
+            <GanttChartSquare className="h-5 w-5 text-white" />
           </div>
           <div>
-            <div className="font-serif text-lg leading-none">Task Engine</div>
-            <div className="text-[10px] uppercase tracking-widest text-stone-500 mt-0.5">Group OS</div>
+            <div className="font-serif text-[17px] text-white leading-tight tracking-tight">Task Engine</div>
+            <div className="text-[9px] uppercase tracking-[0.2em] text-slate-500 mt-0.5">ELKATEB GROUP</div>
           </div>
         </div>
       </div>
 
-      <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
+      {/* Navigation */}
+      <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto scrollbar-thin">
+        <div className="px-3 pb-2 pt-1">
+          <span className="text-[10px] font-semibold uppercase tracking-[0.15em] text-slate-600">Navigation</span>
+        </div>
+
         {navItems.map(item => {
           const Icon = item.icon;
           const active = isActive(item.href);
@@ -56,41 +62,56 @@ export default function Sidebar({ profile }: { profile: Profile }) {
             <Link
               key={item.href}
               href={item.href}
-              className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${
+              className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150 group ${
                 active
-                  ? 'bg-amber-800/30 text-amber-100 border-l-2 border-amber-500'
-                  : 'text-stone-400 hover:bg-stone-800 hover:text-stone-100'
+                  ? 'text-amber-400'
+                  : 'text-slate-400 hover:text-slate-100'
               }`}
+              style={active ? { background: 'var(--sidebar-active)' } : undefined}
+              onMouseEnter={e => { if (!active) (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-hover)'; }}
+              onMouseLeave={e => { if (!active) (e.currentTarget as HTMLElement).style.background = ''; }}
             >
-              <Icon className="h-4 w-4 shrink-0" />
+              {active && <span className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-6 bg-amber-500 rounded-r-full" />}
+              <Icon className={`h-4 w-4 shrink-0 ${active ? 'text-amber-400' : 'text-slate-500 group-hover:text-slate-300'}`} />
               <span className="flex-1">{item.label}</span>
             </Link>
           );
         })}
 
-        {profile.role === 'general_manager' || profile.role === 'admin' ? (
-          <Link
-            href="/admin"
-            className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${
-              isActive('/admin')
-                ? 'bg-amber-800/30 text-amber-100 border-l-2 border-amber-500'
-                : 'text-stone-400 hover:bg-stone-800 hover:text-stone-100'
-            }`}
-          >
-            <Settings className="h-4 w-4" />
-            <span className="flex-1">Administration</span>
-          </Link>
-        ) : null}
+        {profile.role === 'admin' && (
+          <>
+            <div className="px-3 pb-2 pt-4">
+              <span className="text-[10px] font-semibold uppercase tracking-[0.15em] text-slate-600">Admin</span>
+            </div>
+            <Link
+              href="/admin"
+              className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150 group ${
+                isActive('/admin') ? 'text-amber-400' : 'text-slate-400 hover:text-slate-100'
+              }`}
+              style={isActive('/admin') ? { background: 'var(--sidebar-active)' } : undefined}
+              onMouseEnter={e => { if (!isActive('/admin')) (e.currentTarget as HTMLElement).style.background = 'var(--sidebar-hover)'; }}
+              onMouseLeave={e => { if (!isActive('/admin')) (e.currentTarget as HTMLElement).style.background = ''; }}
+            >
+              <Settings className={`h-4 w-4 shrink-0 ${isActive('/admin') ? 'text-amber-400' : 'text-slate-500 group-hover:text-slate-300'}`} />
+              <span>Administration</span>
+            </Link>
+          </>
+        )}
       </nav>
 
-      <div className="p-3 border-t border-stone-800">
-        <div className="flex items-center gap-3 p-2 rounded-lg">
+      {/* User card */}
+      <div className="p-3" style={{ borderTop: '1px solid var(--sidebar-border)' }}>
+        <div className="flex items-center gap-3 px-2 py-2 rounded-lg" style={{ background: 'var(--sidebar-hover)' }}>
           <Avatar name={profile.full_name} size="md" />
           <div className="flex-1 min-w-0">
-            <div className="text-sm font-medium truncate">{profile.full_name}</div>
-            <div className="text-xs text-stone-500 truncate">{roleLabel(profile.role)}</div>
+            <div className="text-sm font-medium text-slate-100 truncate">{profile.full_name}</div>
+            <div className="text-xs text-slate-500 truncate">{roleLabel(profile.role)}</div>
           </div>
-          <button onClick={handleSignOut} title="Déconnexion" className="text-stone-500 hover:text-stone-200">
+          <button
+            onClick={handleSignOut}
+            title="Déconnexion"
+            className="p-1.5 rounded-md text-slate-600 hover:text-slate-300 hover:bg-white/10 transition-colors"
+          >
             <LogOut className="h-4 w-4" />
           </button>
         </div>

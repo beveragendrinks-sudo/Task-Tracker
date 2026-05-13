@@ -9,16 +9,17 @@ export default async function GivenTasksPage() {
   if (!profile) return null;
 
   const supabase = createClient();
-  const { data: tasks } = await supabase
+  const { data: tasks, error: tasksError } = await supabase
     .from('tasks')
     .select(`
       *,
-      entity:entities(name),
+      entity:entities!tasks_entity_id_fkey(name),
       owner:profiles!tasks_owner_id_fkey(id, full_name)
     `)
     .eq('created_by', profile.id)
     .order('created_at', { ascending: false });
 
+  if (tasksError) console.error('[GivenTasksPage] RLS/query error:', tasksError.message);
   const tasksList = tasks || [];
 
   return (

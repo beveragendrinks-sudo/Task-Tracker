@@ -90,8 +90,7 @@ export function roleLabel(role: string): string {
     admin: 'Administrateur',
     head_of_department: 'Chef de Département',
     manager: 'Manager',
-    task_owner: 'Collaborateur',
-    contributor: 'Contributeur',
+    collaborator: 'Collaborateur',
   };
   return map[role] || role;
 }

@@ -23,7 +23,7 @@ export const TRANSITIONS: Transition[] = [
   { from: 'assigned', to: 'cancelled', allowedRoles: ['creator', 'dg', 'admin'], label: 'Annuler', requiresReason: true },
 
   // Negotiation → ...
-  { from: 'negotiation', to: 'assigned', allowedRoles: ['creator', 'dg', 'admin'], label: 'Accepter modification' },
+  { from: 'negotiation', to: 'assigned', allowedRoles: ['creator'], label: 'Accepter modification' },
   { from: 'negotiation', to: 'cancelled', allowedRoles: ['creator', 'dg', 'admin'], label: 'Annuler' },
 
   // Accepted → Active
@@ -47,8 +47,8 @@ export const TRANSITIONS: Transition[] = [
   { from: 'blocked', to: 'active', allowedRoles: ['owner', 'creator', 'dg', 'admin'], label: 'Résoudre blocage' },
 
   // Closed by Owner → Approved / Rejected
-  { from: 'closed_by_owner', to: 'approved', allowedRoles: ['creator', 'dg', 'admin'], label: 'Approuver' },
-  { from: 'closed_by_owner', to: 'rejected_closure', allowedRoles: ['creator', 'dg', 'admin'], label: 'Rejeter clôture', requiresReason: true },
+  { from: 'closed_by_owner', to: 'approved', allowedRoles: ['creator'], label: 'Approuver' },
+  { from: 'closed_by_owner', to: 'rejected_closure', allowedRoles: ['creator'], label: 'Rejeter clôture', requiresReason: true },
 
   // Rejected Closure → Active
   { from: 'rejected_closure', to: 'active', allowedRoles: ['owner'], label: 'Corriger' },

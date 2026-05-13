@@ -10,15 +10,19 @@ import type { Task, Profile, TaskStatus } from '@/types/database';
 interface Props {
   task: Task;
   profile: Profile;
+  negotiationReason?: string | null;
+  negotiationFrom?: string | null;
 }
 
-export default function TaskActions({ task, profile }: Props) {
+export default function TaskActions({ task, profile, negotiationReason, negotiationFrom }: Props) {
   const router = useRouter();
   const supabase = createClient();
   const [loading, setLoading] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [showReason, setShowReason] = useState<{ to: TaskStatus; label: string } | null>(null);
   const [reason, setReason] = useState('');
+  const [showRefusal, setShowRefusal] = useState(false);
+  const [refusalReason, setRefusalReason] = useState('');
 
   const transitions = getAvailableTransitions(
     { status: task.status, owner_id: task.owner_id, created_by: task.created_by },
@@ -30,7 +34,7 @@ export default function TaskActions({ task, profile }: Props) {
     setError(null);
     setLoading(toStatus);
 
-    // Vérifier DoD si nécessaire (closed_by_owner)
+    // Vérifier DoD localement pour feedback rapide
     if (toStatus === 'closed_by_owner') {
       const dod = (task.definition_of_done as any[]) || [];
       const undone = dod.filter(d => !d.done);
@@ -41,84 +45,27 @@ export default function TaskActions({ task, profile }: Props) {
       }
     }
 
-    // Préparer les updates
-    const updates: any = { status: toStatus };
-
-    if (toStatus === 'accepted') {
-      updates.accepted_deadline = task.proposed_deadline;
-      updates.accepted_workload_percent = task.proposed_workload_percent;
-      updates.workload_start_date = new Date().toISOString().split('T')[0];
-      if (task.proposed_deadline) {
-        updates.workload_end_date = task.proposed_deadline.split('T')[0];
+    try {
+      const res = await fetch(`/api/tasks/${task.id}/transition`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ to_status: toStatus, reason: reasonText }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(data?.error || 'Erreur lors de la transition');
+        setLoading(null);
+        return;
       }
-    }
-    if (toStatus === 'active' && !task.start_date_actual) {
-      updates.start_date_actual = new Date().toISOString();
-    }
-    if (toStatus === 'closed_by_owner') {
-      updates.closed_by_owner_at = new Date().toISOString();
-    }
-    if (toStatus === 'approved') {
-      updates.approved_at = new Date().toISOString();
-    }
-    if (toStatus === 'rejected_closure') {
-      updates.rejected_at = new Date().toISOString();
-      updates.rejection_reason = reasonText;
-    }
-    if (toStatus === 'cancelled') {
-      updates.cancelled_at = new Date().toISOString();
-      updates.cancellation_reason = reasonText;
-    }
 
-    const { error: updateError } = await supabase
-      .from('tasks')
-      .update(updates)
-      .eq('id', task.id);
-
-    if (updateError) {
-      setError(updateError.message);
       setLoading(null);
-      return;
+      setShowReason(null);
+      setReason('');
+      router.refresh();
+    } catch (err) {
+      setError('Erreur réseau');
+      setLoading(null);
     }
-
-    // Audit log avec raison
-    if (reasonText) {
-      await supabase.from('task_status_history').insert({
-        task_id: task.id,
-        from_status: task.status,
-        to_status: toStatus,
-        changed_by: profile.id,
-        reason: reasonText,
-      });
-    }
-
-    // Notification au créateur ou owner selon transition
-    const notifMap: Record<string, { user: string; type: string; title: string }> = {
-      accepted:        { user: task.created_by,     type: 'deadline_accepted',  title: `Tâche acceptée : ${task.title}` },
-      negotiation:     { user: task.created_by,     type: 'change_requested',   title: `Modification demandée : ${task.title}` },
-      active:          { user: task.created_by,     type: 'task_activated',     title: `Tâche démarrée : ${task.title}` },
-      blocked:         { user: task.created_by,     type: 'task_blocked',       title: `Tâche bloquée : ${task.title}` },
-      closed_by_owner: { user: task.created_by,     type: 'task_closed',        title: `À approuver : ${task.title}` },
-      approved:        { user: task.owner_id || '', type: 'closure_approved',   title: `Clôture approuvée : ${task.title}` },
-      rejected_closure:{ user: task.owner_id || '', type: 'closure_rejected',   title: `Clôture rejetée : ${task.title}` },
-    };
-
-    const n = notifMap[toStatus];
-    if (n && n.user) {
-      await supabase.from('notifications').insert({
-        user_id: n.user,
-        type: n.type,
-        title: n.title,
-        message: reasonText ? `Raison : ${reasonText}` : 'Action sans commentaire.',
-        task_id: task.id,
-        related_user_id: profile.id,
-      });
-    }
-
-    setLoading(null);
-    setShowReason(null);
-    setReason('');
-    router.refresh();
   };
 
   const onClick = (toStatus: TaskStatus, label: string, requiresReason?: boolean) => {
@@ -128,6 +75,61 @@ export default function TaskActions({ task, profile }: Props) {
       handleTransition(toStatus, label);
     }
   };
+
+  const handleRefusal = async () => {
+    setError(null);
+    setLoading('refuse');
+
+    if (!task.owner_id) {
+      setError("Aucun responsable à notifier.");
+      setLoading(null);
+      return;
+    }
+
+    // Insérer dans l'historique (sans changer de statut)
+    const { error: histError } = await supabase.from('task_status_history').insert({
+      task_id: task.id,
+      from_status: task.status,
+      to_status: task.status,
+      changed_by: profile.id,
+      reason: refusalReason,
+    });
+
+    if (histError) {
+      setError(histError.message);
+      setLoading(null);
+      return;
+    }
+
+    // Notifier le responsable
+    const { error: notifError } = await supabase.from('notifications').insert({
+      user_id: task.owner_id,
+      type: 'change_requested',
+      title: `Modification refusée : ${task.title}`,
+      message: refusalReason || 'Modification refusée',
+      task_id: task.id,
+      related_user_id: profile.id,
+    });
+
+    if (notifError) {
+      setError(notifError.message);
+      setLoading(null);
+      return;
+    }
+
+    setShowRefusal(false);
+    setRefusalReason('');
+    setLoading(null);
+    router.refresh();
+  };
+
+  // Filtrer les transitions affichées pour éviter les doublons sous la bannière de négociation
+  const visibleTransitions = transitions.filter(t => {
+    if (task.status === 'negotiation' && profile.id === task.created_by) {
+      return !['assigned', 'cancelled'].includes(t.to);
+    }
+    return true;
+  });
 
   if (transitions.length === 0) {
     return (
@@ -141,8 +143,48 @@ export default function TaskActions({ task, profile }: Props) {
     <div className="bg-white border border-stone-200 rounded-xl p-5">
       <h3 className="text-xs font-semibold uppercase tracking-wider text-stone-500 mb-3">Actions</h3>
 
+      {/* Si en négociation, afficher le message et actions claires pour le créateur */}
+      {task.status === 'negotiation' && profile.id === task.created_by && negotiationReason && (
+        <div className="mb-3">
+          <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+            <div className="text-sm text-stone-700 mb-2">
+              <span className="font-medium">{negotiationFrom || 'Responsable'}</span>
+              <span className="text-stone-600"> a demandé une modification :</span>
+            </div>
+            <div className="text-sm text-stone-800 whitespace-pre-wrap mb-3">{negotiationReason || ''}</div>
+            <div className="flex gap-2">
+              {transitions.find(t => t.to === 'assigned') && (
+                <button
+                  onClick={() => onClick('assigned', transitions.find(t => t.to === 'assigned')!.label, transitions.find(t => t.to === 'assigned')!.requiresReason)}
+                  disabled={loading !== null}
+                  className="px-3 py-2 bg-emerald-700 text-white rounded-lg text-sm"
+                >
+                  Accepter
+                </button>
+              )}
+              <button
+                onClick={() => setShowRefusal(true)}
+                disabled={loading !== null}
+                className="px-3 py-2 bg-stone-800 text-white rounded-lg text-sm"
+              >
+                Refuser
+              </button>
+              {transitions.find(t => t.to === 'cancelled') && (
+                <button
+                  onClick={() => onClick('cancelled', transitions.find(t => t.to === 'cancelled')!.label, transitions.find(t => t.to === 'cancelled')!.requiresReason)}
+                  disabled={loading !== null}
+                  className="px-3 py-2 bg-red-700 text-white rounded-lg text-sm"
+                >
+                  Annuler la tâche
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="space-y-2">
-        {transitions.map(t => {
+        {visibleTransitions.map(t => {
           const isPositive = ['accepted', 'active', 'approved', 'closed_by_owner'].includes(t.to);
           const isNegative = ['rejected_closure', 'cancelled', 'blocked'].includes(t.to);
 
@@ -202,6 +244,39 @@ export default function TaskActions({ task, profile }: Props) {
                 className="px-4 py-2 bg-stone-900 text-white text-sm rounded-lg hover:bg-stone-800 disabled:opacity-50"
               >
                 Confirmer
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal refus de modification */}
+      {showRefusal && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl p-6 max-w-md w-full">
+            <h3 className="font-serif text-lg mb-2">Refuser la modification</h3>
+            <p className="text-sm text-stone-500 mb-3">Expliquez pourquoi vous refusez la modification (sera envoyé au responsable).</p>
+            <textarea
+              value={refusalReason}
+              onChange={e => setRefusalReason(e.target.value)}
+              rows={4}
+              placeholder="Expliquez votre décision..."
+              className="w-full border border-stone-300 rounded-lg px-3 py-2 text-sm mb-4"
+              autoFocus
+            />
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => { setShowRefusal(false); setRefusalReason(''); }}
+                className="px-4 py-2 text-sm text-stone-700"
+              >
+                Annuler
+              </button>
+              <button
+                onClick={handleRefusal}
+                disabled={!refusalReason.trim() || loading !== null}
+                className="px-4 py-2 bg-stone-900 text-white text-sm rounded-lg hover:bg-stone-800 disabled:opacity-50"
+              >
+                Envoyer
               </button>
             </div>
           </div>

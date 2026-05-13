@@ -50,7 +50,7 @@ export async function getCurrentProfile() {
       auth_user_id: user.id,
       email: user.email!,
       full_name: fullName,
-      role: 'task_owner',
+      role: 'collaborator',
     });
 
     const { data: newProfile } = await supabase

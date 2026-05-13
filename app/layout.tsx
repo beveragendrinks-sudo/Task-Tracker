@@ -1,9 +1,12 @@
 import type { Metadata } from 'next';
-import './globals.css';
+import './globals.css'
 
 export const metadata: Metadata = {
-  title: 'Task Engine — Group OS',
+  title: 'Task Engine — ELKATEB Group ',
   description: 'Gestion des tâches, engagements et workload pour groupe industriel',
+  icons: {
+    icon: '/favicon.svg'
+  }
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

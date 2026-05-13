@@ -27,7 +27,7 @@ export async function updateSession(request: NextRequest) {
 
   // Redirection : pages protégées sans utilisateur
   const url = request.nextUrl.clone();
-  const isAuthRoute = url.pathname.startsWith('/login') || url.pathname.startsWith('/auth') || url.pathname.startsWith('/signup') || url.pathname.startsWith('/api/auth');
+  const isAuthRoute = url.pathname.startsWith('/login') || url.pathname.startsWith('/auth') || url.pathname.startsWith('/signup') || url.pathname.startsWith('/api/auth') || url.pathname.startsWith('/forgot-password') || url.pathname.startsWith('/reset-password');
 
   if (!user && !isAuthRoute) {
     url.pathname = '/login';

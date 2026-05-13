@@ -4,6 +4,7 @@ import { createClient, getCurrentProfile } from '@/lib/supabase/server';
 import Header from '@/components/Header';
 import { PriorityBadge, StatusBadge, Avatar } from '@/components/Badges';
 import TaskActions from '@/components/TaskActions';
+import DoD from '@/components/DoD';
 import { formatDate, formatDateShort, isOverdue, daysFromNow } from '@/lib/utils';
 
 export default async function TaskDetailPage({ params }: { params: { id: string } }) {
@@ -16,7 +17,7 @@ export default async function TaskDetailPage({ params }: { params: { id: string 
     .from('tasks')
     .select(`
       *,
-      entity:entities(*),
+      entity:entities!tasks_entity_id_fkey(*),
       department:departments!tasks_primary_department_id_fkey(*),
       creator:profiles!tasks_created_by_fkey(*),
       owner:profiles!tasks_owner_id_fkey(*)
@@ -41,7 +42,27 @@ export default async function TaskDetailPage({ params }: { params: { id: string 
     .eq('task_id', params.id)
     .order('created_at', { ascending: false });
 
+  // Marquer les notifications liées à cette tâche comme lues pour l'utilisateur courant
+  try {
+    const { error: notifError } = await supabase
+      .from('notifications')
+      .update({ is_read: true, read_at: new Date().toISOString() })
+      .eq('task_id', params.id)
+      .eq('user_id', profile.id)
+      .eq('is_read', false);
+    if (notifError) {
+      console.error('Erreur en marquant notifications lues:', notifError.message || notifError);
+    }
+  } catch (e) {
+    console.error('Erreur en marquant notifications lues:', e);
+  }
+
   const overdue = task.accepted_deadline && isOverdue(task.accepted_deadline);
+
+  // Extraire le dernier message de négociation (si présent)
+  const negotiationEntry = (history || []).find((h: any) => h.to_status === 'negotiation');
+  const negotiationReason = negotiationEntry?.reason || null;
+  const negotiationFrom = (negotiationEntry as any)?.changed_by_profile?.full_name || null;
 
   return (
     <>
@@ -72,20 +93,7 @@ export default async function TaskDetailPage({ params }: { params: { id: string 
               <h3 className="text-xs font-semibold uppercase tracking-wider text-stone-500 mb-3">
                 Definition of Done
               </h3>
-              <div className="space-y-2">
-                {(task.definition_of_done as any[]).map((d: any, i: number) => (
-                  <div key={i} className="flex items-center gap-3 p-3 bg-stone-50 border border-stone-200 rounded-lg">
-                    <div className={`h-5 w-5 rounded border-2 flex items-center justify-center shrink-0 ${
-                      d.done ? 'bg-emerald-600 border-emerald-600' : 'border-stone-300 bg-white'
-                    }`}>
-                      {d.done && <span className="text-white text-xs">✓</span>}
-                    </div>
-                    <span className={`text-sm flex-1 ${d.done ? 'line-through text-stone-400' : 'text-stone-800'}`}>
-                      {d.label}
-                    </span>
-                  </div>
-                ))}
-              </div>
+              <DoD taskId={task.id} initial={task.definition_of_done as any[]} />
             </div>
           )}
 
@@ -97,15 +105,20 @@ export default async function TaskDetailPage({ params }: { params: { id: string 
               </h3>
               <div className="space-y-2">
                 {history.map(h => (
-                  <div key={h.id} className="flex items-center gap-3 text-sm py-2 border-l-2 border-stone-200 pl-3">
-                    <span className="font-medium">{(h as any).changed_by_profile?.full_name || 'Système'}</span>
-                    <span className="text-stone-600">a passé le statut de</span>
-                    <span className="text-xs px-1.5 py-0.5 bg-stone-100 rounded">{h.from_status || 'créé'}</span>
-                    <span>→</span>
-                    <span className="text-xs px-1.5 py-0.5 bg-amber-100 text-amber-800 rounded font-medium">
-                      {h.to_status}
-                    </span>
-                    <span className="text-xs text-stone-400 ml-auto">{formatDateShort(h.created_at)}</span>
+                  <div key={h.id} className="text-sm py-2 border-l-2 border-stone-200 pl-3">
+                    <div className="flex items-center gap-3">
+                      <span className="font-medium">{(h as any).changed_by_profile?.full_name || 'Système'}</span>
+                      <span className="text-stone-600">a passé le statut de</span>
+                      <span className="text-xs px-1.5 py-0.5 bg-stone-100 rounded">{h.from_status || 'créé'}</span>
+                      <span>→</span>
+                      <span className="text-xs px-1.5 py-0.5 bg-amber-100 text-amber-800 rounded font-medium">
+                        {h.to_status}
+                      </span>
+                      <span className="text-xs text-stone-400 ml-auto">{formatDateShort(h.created_at)}</span>
+                    </div>
+                    {(h as any).reason && (
+                      <div className="mt-2 text-sm text-stone-600 pl-1">{(h as any).reason}</div>
+                    )}
                   </div>
                 ))}
               </div>
@@ -115,7 +128,7 @@ export default async function TaskDetailPage({ params }: { params: { id: string 
 
         {/* Sidebar droite — Actions et infos */}
         <div className="space-y-6">
-          <TaskActions task={task} profile={profile} />
+          <TaskActions task={task} profile={profile} negotiationReason={negotiationReason} negotiationFrom={negotiationFrom} />
 
           {/* Métadonnées */}
           <div className="bg-white border border-stone-200 rounded-xl p-5 space-y-3 text-sm">

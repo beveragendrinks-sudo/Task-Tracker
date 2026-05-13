@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient, getCurrentProfile } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
 
 export async function GET(req: NextRequest) {
   const profile = await getCurrentProfile();
@@ -15,7 +16,7 @@ export async function GET(req: NextRequest) {
     .from('tasks')
     .select(`
       *,
-      entity:entities(name),
+      entity:entities!tasks_entity_id_fkey(name),
       owner:profiles!tasks_owner_id_fkey(id, full_name),
       department:departments!tasks_primary_department_id_fkey(name)
     `);
@@ -45,15 +46,21 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Definition of Done requise' }, { status: 400 });
   }
 
-  const supabase = createClient();
-  const { data, error } = await supabase
+  // Le DG peut désigner un autre créateur ; tous les autres sont toujours créateurs eux-mêmes
+  const isDG = profile.role === 'general_manager' || profile.role === 'admin';
+  const creatorId: string = (isDG && body.created_by) ? body.created_by : profile.id;
+  const useAdminInsert = creatorId !== profile.id;
+
+  const db = useAdminInsert ? createAdminClient() : createClient();
+
+  const { data, error } = await db
     .from('tasks')
     .insert({
       title: body.title,
       description: body.description,
       entity_id: body.entity_id,
       primary_department_id: body.primary_department_id || null,
-      created_by: profile.id,
+      created_by: creatorId,
       owner_id: body.owner_id,
       priority: body.priority || 'P3',
       complexity: body.complexity || 'medium',
@@ -67,15 +74,20 @@ export async function POST(req: NextRequest) {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  // Notification owner
-  await supabase.from('notifications').insert({
-    user_id: body.owner_id,
-    type: 'task_to_accept',
-    title: `Nouvelle tâche à accepter : ${body.title}`,
-    message: `${profile.full_name} vous a assigné une tâche.`,
-    task_id: data.id,
-    related_user_id: profile.id,
-  });
+  // Notification owner via admin client (bypass RLS)
+  try {
+    const { createAndSendNotification } = await import('@/lib/notifications');
+    await createAndSendNotification({
+      user_id: body.owner_id,
+      type: 'task_to_accept',
+      title: `Nouvelle tâche à accepter : ${body.title}`,
+      message: `${profile.full_name} vous a assigné une tâche.`,
+      task_id: data.id,
+      related_user_id: profile.id,
+    });
+  } catch (e) {
+    console.warn('[POST /api/tasks] Notification non envoyée:', e);
+  }
 
   return NextResponse.json({ task: data }, { status: 201 });
 }

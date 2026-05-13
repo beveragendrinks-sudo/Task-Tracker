@@ -10,7 +10,7 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
     .from('tasks')
     .select(`
       *,
-      entity:entities(*),
+      entity:entities!tasks_entity_id_fkey(*),
       department:departments!tasks_primary_department_id_fkey(*),
       creator:profiles!tasks_created_by_fkey(*),
       owner:profiles!tasks_owner_id_fkey(*)
@@ -28,6 +28,24 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 
   const body = await req.json();
   const supabase = createClient();
+
+  // Charger la tâche pour vérifications d'autorisation
+  const { data: task, error: fetchTaskError } = await supabase
+    .from('tasks')
+    .select('id, owner_id, created_by')
+    .eq('id', params.id)
+    .single();
+
+  if (fetchTaskError || !task) {
+    return NextResponse.json({ error: 'Tâche introuvable' }, { status: 404 });
+  }
+
+  // Si modification de la Definition of Done, n'autoriser que le responsable (owner) ou les admins/DG
+  if ('definition_of_done' in body) {
+    if (profile.id !== task.owner_id && !['general_manager', 'admin'].includes(profile.role)) {
+      return NextResponse.json({ error: 'Permission refusée pour modifier les critères DoD' }, { status: 403 });
+    }
+  }
 
   const allowed = [
     'title', 'description', 'priority', 'complexity', 'proposed_deadline',

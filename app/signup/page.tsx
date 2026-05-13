@@ -67,7 +67,7 @@ export default function SignUpPage() {
           </div>
           <h2 className="font-serif text-2xl text-stone-900 mb-2">Inscription réussie !</h2>
           <p className="text-stone-600 mb-4">
-            Votre compte a été créé avec le rôle <span className="font-medium text-amber-700">Task Owner</span>.
+            Votre compte a été créé avec le rôle <span className="font-medium text-amber-700">Collaborateur</span>.
           </p>
           <p className="text-sm text-stone-500">Redirection vers la page de connexion...</p>
         </div>
@@ -171,7 +171,7 @@ export default function SignUpPage() {
             )}
 
             <div className="bg-amber-50 border border-amber-200 text-amber-800 text-xs rounded-lg p-3">
-              <p className="font-medium mb-1">Rôle par défaut : Task Owner</p>
+              <p className="font-medium mb-1">Rôle par défaut : Collaborateur</p>
               <p>Contactez votre administrateur pour obtenir des privilèges supplémentaires.</p>
             </div>
 
@@ -195,7 +195,7 @@ export default function SignUpPage() {
         </div>
 
         <div className="mt-6 text-center text-xs text-stone-500">
-          Sécurisé par Supabase · Row Level Security activé
+            Développé par YBAK Solutions - 2026
         </div>
       </div>
     </div>

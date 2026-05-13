@@ -17,7 +17,7 @@ create extension if not exists "pgcrypto";
 -- ---------------------------------------------------------------------
 create type user_role as enum (
   'general_manager', 'admin', 'head_of_department',
-  'manager', 'task_owner', 'contributor'
+  'manager', 'collaborator',
 );
 
 create type task_priority as enum ('P1', 'P2', 'P3', 'P4');
@@ -78,7 +78,7 @@ create table profiles (
   full_name text not null,
   email text not null unique,
   phone text,
-  role user_role not null default 'task_owner',
+  role user_role not null default 'collaborator',
   job_title text,
   entity_id uuid references entities(id),
   department_id uuid references departments(id),

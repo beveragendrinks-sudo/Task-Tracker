@@ -3,7 +3,6 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Plus, X, Send, AlertCircle } from 'lucide-react';
-import { createClient } from '@/lib/supabase/client';
 import { PriorityBadge } from './Badges';
 import { PRIORITY_CONFIG, COMPLEXITY_CONFIG } from '@/lib/utils';
 import type { Profile, Entity, Department, TaskPriority, TaskComplexity } from '@/types/database';
@@ -17,7 +16,6 @@ interface Props {
 
 export default function TaskForm({ entities, departments, users, currentProfile }: Props) {
   const router = useRouter();
-  const supabase = createClient();
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -27,12 +25,48 @@ export default function TaskForm({ entities, departments, users, currentProfile 
     entity_id: entities[0]?.id || '',
     primary_department_id: departments[0]?.id || '',
     owner_id: '',
+    created_by: currentProfile.id,
     priority: 'P3' as TaskPriority,
     complexity: 'medium' as TaskComplexity,
     proposed_deadline: '',
     proposed_workload_percent: 25,
     definition_of_done: ['', '', ''],
   });
+
+  const SELECTED_BG: Record<TaskPriority, string> = {
+    P1: 'bg-red-50',
+    P2: 'bg-orange-50',
+    P3: 'bg-sky-50',
+    P4: 'bg-slate-50',
+  };
+
+  const SELECTED_RING: Record<TaskPriority, string> = {
+    P1: 'ring-red-400',
+    P2: 'ring-orange-400',
+    P3: 'ring-sky-400',
+    P4: 'ring-slate-400',
+  };
+
+  const SELECTED_BG_COMPLEXITY: Record<TaskComplexity, string> = {
+    simple: 'bg-emerald-50',
+    medium: 'bg-amber-50',
+    complex: 'bg-amber-100',
+    strategic: 'bg-sky-50',
+  };
+
+  const SELECTED_RING_COMPLEXITY: Record<TaskComplexity, string> = {
+    simple: 'ring-emerald-200',
+    medium: 'ring-amber-200',
+    complex: 'ring-orange-200',
+    strategic: 'ring-sky-200',
+  };
+
+  const SELECTED_BORDER_COMPLEXITY: Record<TaskComplexity, string> = {
+    simple: 'border-emerald-600',
+    medium: 'border-amber-700',
+    complex: 'border-orange-600',
+    strategic: 'border-sky-600',
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -49,48 +83,45 @@ export default function TaskForm({ entities, departments, users, currentProfile 
       return;
     }
 
+    if (!form.entity_id) {
+      setError("L'entité est obligatoire.");
+      setSubmitting(false);
+      return;
+    }
+
     if (!form.owner_id) {
       setError('Le responsable (owner) est obligatoire.');
       setSubmitting(false);
       return;
     }
 
-    const { data, error: insertError } = await supabase
-      .from('tasks')
-      .insert({
+    const res = await fetch('/api/tasks', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
         title: form.title,
         description: form.description,
-        entity_id: form.entity_id,
-        primary_department_id: form.primary_department_id,
-        created_by: currentProfile.id,
+        entity_id: form.entity_id || null,
+        primary_department_id: form.primary_department_id || null,
+        created_by: form.created_by,
         owner_id: form.owner_id,
         priority: form.priority,
         complexity: form.complexity,
-        status: 'assigned',
         proposed_deadline: form.proposed_deadline || null,
         proposed_workload_percent: form.proposed_workload_percent,
         definition_of_done: dod,
-      })
-      .select()
-      .single();
+      }),
+    });
 
-    if (insertError) {
-      setError(insertError.message);
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      setError(err.error || 'Erreur lors de la création de la tâche.');
       setSubmitting(false);
       return;
     }
 
-    // Notification au owner
-    await supabase.from('notifications').insert({
-      user_id: form.owner_id,
-      type: 'task_to_accept',
-      title: `Nouvelle tâche à accepter : ${form.title}`,
-      message: `${currentProfile.full_name} vous a assigné une tâche.`,
-      task_id: data.id,
-      related_user_id: currentProfile.id,
-    });
-
-    router.push(`/tasks/${data.id}`);
+    const { task } = await res.json();
+    router.push(`/tasks/${task.id}`);
     router.refresh();
   };
 
@@ -125,6 +156,28 @@ export default function TaskForm({ entities, departments, users, currentProfile 
           className="w-full border border-stone-300 rounded-lg px-3 py-2 focus:border-amber-700 focus:ring-1 focus:ring-amber-700 focus:outline-none"
         />
       </div>
+
+      {/* Créateur (DG uniquement) */}
+      {currentProfile.role === 'general_manager' && (
+        <div className="border border-amber-200 bg-amber-50 rounded-xl p-4">
+          <label className="block text-sm font-medium text-amber-900 mb-1">
+            Créateur de la tâche
+            <span className="ml-2 text-[10px] uppercase tracking-wider font-semibold text-amber-700 bg-amber-100 border border-amber-300 rounded px-1.5 py-0.5">DG</span>
+          </label>
+          <select
+            value={form.created_by}
+            onChange={e => setForm({ ...form, created_by: e.target.value })}
+            className="w-full border border-amber-300 bg-white rounded-lg px-3 py-2 text-sm"
+          >
+            {users.map(u => (
+              <option key={u.id} value={u.id}>
+                {u.full_name}{u.id === currentProfile.id ? ' (vous)' : ''}{u.job_title ? ` — ${u.job_title}` : ''}
+              </option>
+            ))}
+          </select>
+          <p className="text-xs text-amber-700 mt-1.5">La tâche apparaîtra dans « Mes tâches créées » du collaborateur sélectionné.</p>
+        </div>
+      )}
 
       {/* Entité + Département */}
       <div className="grid grid-cols-2 gap-4">
@@ -174,19 +227,27 @@ export default function TaskForm({ entities, departments, users, currentProfile 
       <div>
         <label className="block text-sm font-medium text-stone-700 mb-2">Priorité</label>
         <div className="grid grid-cols-4 gap-2">
-          {(Object.keys(PRIORITY_CONFIG) as TaskPriority[]).map(p => (
-            <button
-              key={p}
-              type="button"
-              onClick={() => setForm({ ...form, priority: p })}
-              className={`px-3 py-2 border-2 rounded-lg text-sm transition-colors ${
-                form.priority === p ? `${PRIORITY_CONFIG[p].border} bg-stone-50` : 'border-stone-200 hover:border-stone-400'
-              }`}
-            >
-              <PriorityBadge priority={p} small />
-              <div className="text-xs mt-1 text-stone-600">{PRIORITY_CONFIG[p].label.split('—')[1]}</div>
-            </button>
-          ))}
+          {(Object.keys(PRIORITY_CONFIG) as TaskPriority[]).map(p => {
+            const selected = form.priority === p;
+            const base = 'px-3 py-2 border-2 rounded-lg text-sm transition-all duration-150 flex flex-col items-start';
+            const selectedClass = `${PRIORITY_CONFIG[p].border} ${SELECTED_BG[p]} ring-2 ${SELECTED_RING[p]} ring-offset-2 ring-offset-white shadow-card-hover`;
+            const normalClass = 'border-stone-200 hover:border-stone-400 bg-white';
+
+            return (
+              <button
+                aria-pressed={selected}
+                key={p}
+                type="button"
+                onClick={() => setForm({ ...form, priority: p })}
+                className={`${base} ${selected ? selectedClass : normalClass}`}
+              >
+                <PriorityBadge priority={p} small />
+                <div className={`text-xs mt-1 ${selected ? 'text-slate-700 font-medium' : 'text-stone-600'}`}>
+                  {PRIORITY_CONFIG[p].label.split('—')[1]}
+                </div>
+              </button>
+            );
+          })}
         </div>
         {currentProfile.role !== 'general_manager' && form.priority === 'P1' && (
           <p className="mt-2 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded p-2">
@@ -199,19 +260,25 @@ export default function TaskForm({ entities, departments, users, currentProfile 
       <div>
         <label className="block text-sm font-medium text-stone-700 mb-2">Complexité</label>
         <div className="grid grid-cols-4 gap-2">
-          {(Object.keys(COMPLEXITY_CONFIG) as TaskComplexity[]).map(c => (
-            <button
-              key={c}
-              type="button"
-              onClick={() => setForm({ ...form, complexity: c })}
-              className={`px-3 py-2 border-2 rounded-lg text-sm transition-colors ${
-                form.complexity === c ? 'border-amber-700 bg-amber-50' : 'border-stone-200 hover:border-stone-400'
-              }`}
-            >
-              <div className="font-medium">{COMPLEXITY_CONFIG[c].label}</div>
-              <div className="text-xs text-stone-500 mt-0.5">×{COMPLEXITY_CONFIG[c].coef}</div>
-            </button>
-          ))}
+          {(Object.keys(COMPLEXITY_CONFIG) as TaskComplexity[]).map(c => {
+            const selectedC = form.complexity === c;
+            const baseC = 'px-3 py-2 border-2 rounded-lg text-sm transition-all duration-150 flex flex-col items-start';
+            const selectedClassC = `${SELECTED_BORDER_COMPLEXITY[c]} ${SELECTED_BG_COMPLEXITY[c]} ${SELECTED_RING_COMPLEXITY[c]} shadow-card-hover`;
+            const normalClassC = 'border-stone-200 hover:border-stone-400 bg-white';
+
+            return (
+              <button
+                aria-pressed={selectedC}
+                key={c}
+                type="button"
+                onClick={() => setForm({ ...form, complexity: c })}
+                className={`${baseC} ${selectedC ? selectedClassC : normalClassC}`}
+              >
+                <div className={`font-medium ${selectedC ? 'text-slate-700' : 'text-stone-700'}`}>{COMPLEXITY_CONFIG[c].label}</div>
+                <div className={`text-xs mt-1 ${selectedC ? 'text-slate-600' : 'text-stone-500'}`}>×{COMPLEXITY_CONFIG[c].coef}</div>
+              </button>
+            );
+          })}
         </div>
       </div>
 

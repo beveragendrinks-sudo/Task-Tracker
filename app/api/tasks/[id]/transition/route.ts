@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient, getCurrentProfile } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { canTransition } from '@/lib/workflow';
 import type { TaskStatus } from '@/types/database';
 
@@ -11,6 +12,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   const { to_status, reason } = body as { to_status: TaskStatus; reason?: string };
 
   const supabase = createClient();
+  const admin = createAdminClient();
   const { data: task, error: fetchError } = await supabase
     .from('tasks')
     .select('*')
@@ -64,7 +66,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     updates.cancellation_reason = reason;
   }
 
-  const { error: updateError } = await supabase
+  const { error: updateError } = await admin
     .from('tasks')
     .update(updates)
     .eq('id', params.id);
@@ -75,13 +77,92 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
   // Audit
   if (reason) {
-    await supabase.from('task_status_history').insert({
+    await admin.from('task_status_history').insert({
       task_id: params.id,
       from_status: task.status,
       to_status,
       changed_by: profile.id,
       reason,
     });
+  }
+
+  // Envoi d'une notification au(x) utilisateur(s) concernés — incluant le texte de modification
+  try {
+    const notifMap: Record<string, { user?: string | null; type: string; title: string; message?: string }> = {
+      negotiation: {
+        user: task.created_by,
+        type: 'change_requested',
+        title: `Modification demandée : ${task.title}`,
+        message: reason ? `Modification demandée : ${reason}` : 'Modification demandée',
+      },
+      rejected_closure: {
+        user: task.owner_id || null,
+        type: 'closure_rejected',
+        title: `Clôture rejetée : ${task.title}`,
+        message: reason ? reason : 'Clôture rejetée',
+      },
+      cancelled: {
+        user: task.created_by,
+        type: 'task_cancelled',
+        title: `Tâche annulée : ${task.title}`,
+        message: reason ? reason : 'Tâche annulée',
+      },
+      accepted: {
+        user: task.created_by,
+        type: 'deadline_accepted',
+        title: `Tâche acceptée : ${task.title}`,
+        message: 'Deadline acceptée',
+      },
+      active: {
+        user: task.created_by,
+        type: 'task_activated',
+        title: `Tâche démarrée : ${task.title}`,
+        message: 'Action effectuée',
+      },
+      closed_by_owner: {
+        user: task.created_by,
+        type: 'task_closed',
+        title: `À approuver : ${task.title}`,
+        message: 'Clôture demandée par le responsable',
+      },
+      approved: {
+        user: task.owner_id || null,
+        type: 'closure_approved',
+        title: `Clôture approuvée : ${task.title}`,
+        message: 'Clôture approuvée',
+      },
+    };
+
+    const n = notifMap[to_status];
+    if (n && n.user) {
+      // n.user peut être null/undefined si pas d'owner — vérifier
+      try {
+        // Utiliser le client admin pour créer et envoyer l'email si configuré
+        const { createAndSendNotification } = await import('@/lib/notifications');
+        await createAndSendNotification({
+          user_id: n.user,
+          type: n.type,
+          title: n.title,
+          message: n.message || '',
+          task_id: params.id,
+          related_user_id: profile.id,
+        });
+      } catch (err) {
+        console.error('Erreur en créant/ envoyant notification:', err);
+        // fallback : insérer la notification sans envoi mail
+        await supabase.from('notifications').insert({
+          user_id: n.user,
+          type: n.type,
+          title: n.title,
+          message: n.message || '',
+          task_id: params.id,
+          related_user_id: profile.id,
+        });
+      }
+    }
+  } catch (err) {
+    // Ne pas bloquer la transition si la notification échoue
+    console.error('Erreur en envoyant notification:', err);
   }
 
   return NextResponse.json({ success: true });

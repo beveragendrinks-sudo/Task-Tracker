@@ -17,7 +17,7 @@ export default async function DashboardPage() {
     .from('tasks')
     .select(`
       *,
-      entity:entities(name),
+      entity:entities!tasks_entity_id_fkey(name),
       owner:profiles!tasks_owner_id_fkey(id, full_name),
       department:departments!tasks_primary_department_id_fkey(name)
     `)
