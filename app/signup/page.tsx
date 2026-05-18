@@ -59,7 +59,7 @@ export default function SignUpPage() {
   if (success) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-stone-900 via-stone-800 to-stone-900 flex items-center justify-center p-4">
-        <div className="bg-white rounded-2xl p-8 shadow-2xl max-w-md w-full text-center">
+        <div className="bg-white rounded-2xl p-6 md:p-8 shadow-2xl max-w-md w-full text-center">
           <div className="h-14 w-14 rounded-xl bg-gradient-to-br from-green-500 to-green-700 flex items-center justify-center mx-auto mb-4">
             <svg className="h-8 w-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
@@ -95,7 +95,7 @@ export default function SignUpPage() {
           <p className="text-amber-400 text-sm uppercase tracking-[0.3em] mt-2">Group Operating System</p>
         </div>
 
-        <div className="bg-white rounded-2xl p-8 shadow-2xl">
+        <div className="bg-white rounded-2xl p-6 md:p-8 shadow-2xl">
           <div className="flex items-center gap-2 mb-4">
             <Link href="/login" className="text-stone-500 hover:text-stone-900 transition-colors">
               <ArrowLeft className="h-5 w-5" />

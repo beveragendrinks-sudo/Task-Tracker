@@ -1,11 +1,15 @@
 import { notFound, redirect } from 'next/navigation';
-import { Calendar, Clock, Sparkles } from 'lucide-react';
+import { ArrowLeft, Calendar, User, Building2, Briefcase, AlertTriangle, Sparkles, CheckSquare, Users as UsersIcon, Lock } from 'lucide-react';
 import { createClient, getCurrentProfile } from '@/lib/supabase/server';
 import Header from '@/components/Header';
 import { PriorityBadge, StatusBadge, Avatar } from '@/components/Badges';
 import TaskActions from '@/components/TaskActions';
 import DoD from '@/components/DoD';
+import SubtaskList from '@/components/SubtaskList';
+import PrivateBadge from '@/components/PrivateBadge';
+import PermissionsManager from '@/components/PermissionsManager';
 import { formatDate, formatDateShort, isOverdue, daysFromNow } from '@/lib/utils';
+import Link from 'next/link';
 
 export default async function TaskDetailPage({ params }: { params: { id: string } }) {
   const profile = await getCurrentProfile();
@@ -64,11 +68,55 @@ export default async function TaskDetailPage({ params }: { params: { id: string 
   const negotiationReason = negotiationEntry?.reason || null;
   const negotiationFrom = (negotiationEntry as any)?.changed_by_profile?.full_name || null;
 
+  // Sécurité : si tâche privée et user non autorisé → redirect
+  // (Normalement RLS bloque, donc task serait null. Sécurité supplémentaire.)
+  const isAuthorized =
+    !task.is_private ||
+    task.created_by === profile.id ||
+    task.owner_id === profile.id ||
+    (task.permissions || []).some((p: any) => p.user_id === profile.id);
+
+  if (!isAuthorized) {
+    return (
+      <>
+        <div className="bg-sap-surface border-b border-sap-border px-6 py-4">
+          <Link href="/dashboard" className="text-xs text-sap-text-secondary hover:text-sap-brand inline-flex items-center gap-1 mb-2">
+            <ArrowLeft className="h-3 w-3" /> Retour
+          </Link>
+        </div>
+        <div className="p-6">
+          <div className="max-w-md mx-auto bg-sap-surface border border-sap-border rounded shadow-sap-tile p-8 text-center">
+            <Lock className="h-12 w-12 text-sap-text-secondary mx-auto mb-3" />
+            <h2 className="text-lg font-light text-sap-text mb-1">Tâche privée</h2>
+            <p className="text-sm text-sap-text-secondary">Contenu non accessible. Demandez l'accès au créateur ou à l'owner.</p>
+          </div>
+        </div>
+      </>
+    );
+  }
+
+  const { data: users } = await supabase.from('profiles').select('*').eq('is_active', true);
+
+  // Sous-tâches
+  const { data: subtasks } = await supabase
+    .from('task_subtasks')
+    .select(`*,
+      owner:profiles!task_subtasks_owner_id_fkey(id, full_name, job_title),
+      creator:profiles!task_subtasks_created_by_fkey(id, full_name)`)
+    .eq('parent_task_id', task.id)
+    .order('position', { ascending: true });
+
+  const dod = (task.definition_of_done as any[]) || [];
+  const days = daysFromNow(task.accepted_deadline || task.proposed_deadline);
+  const isOwner = task.owner_id === profile.id;
+  const canManagePerms = task.created_by === profile.id || task.owner_id === profile.id || ['general_manager','admin'].includes(profile.role);
+  const canCreateSubtask = task.created_by === profile.id || task.owner_id === profile.id || ['general_manager','admin'].includes(profile.role);
+
   return (
     <>
       <Header title={task.title} subtitle={task.reference} />
 
-      <div className="p-8 grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="p-4 md:p-8 grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6">
         {/* Colonne principale */}
         <div className="lg:col-span-2 space-y-6">
           {/* Statut */}
@@ -76,7 +124,8 @@ export default async function TaskDetailPage({ params }: { params: { id: string 
             <div className="flex items-center gap-3 mb-4 flex-wrap">
               <PriorityBadge priority={task.priority} />
               <StatusBadge status={task.status} />
-              {overdue && (
+              {task.is_private && <PrivateBadge />}
+                {overdue && (
                 <span className="text-xs px-2 py-0.5 bg-red-100 text-red-800 rounded font-medium">
                   ⚠ {Math.abs(daysFromNow(task.accepted_deadline)!)}j de retard
                 </span>
@@ -94,6 +143,37 @@ export default async function TaskDetailPage({ params }: { params: { id: string 
                 Definition of Done
               </h3>
               <DoD taskId={task.id} initial={task.definition_of_done as any[]} />
+            </div>
+          )}
+
+          {/* Sous-tâches */}
+          <SubtaskList
+            parentTask={task as any}
+            subtasks={(subtasks || []) as any}
+            users={(users || []) as any}
+            currentProfile={profile as any}
+            canCreate={canCreateSubtask}
+          />
+
+          
+          {/* Contributeurs */}
+          {(task as any).contributors?.length > 0 && (
+            <div className="bg-sap-surface border border-sap-border rounded shadow-sap-tile">
+              <div className="px-4 py-2.5 border-b border-sap-border flex items-center gap-2">
+                <UsersIcon className="h-4 w-4 text-sap-text-secondary" />
+                <h2 className="text-xs font-semibold uppercase tracking-wider text-sap-text-secondary">Contributeurs</h2>
+              </div>
+              <div className="p-4 space-y-2">
+                {(task as any).contributors.map((c: any) => (
+                  <div key={c.user_id} className="flex items-center gap-3">
+                    <Avatar name={c.profile.full_name} size="sm" />
+                    <div className="min-w-0">
+                      <div className="text-sm text-sap-text">{c.profile.full_name}</div>
+                      <div className="text-xs text-sap-text-secondary">{c.profile.job_title}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
 
@@ -199,6 +279,28 @@ export default async function TaskDetailPage({ params }: { params: { id: string 
           </div>
         </div>
       </div>
+                {/* Permissions (si tâche privée) */}
+          {task.is_private && (
+            <PermissionsManager
+              resourceType="task"
+              resourceId={task.id}
+              permissions={(task as any).permissions || []}
+              availableUsers={(users || []) as any}
+              canManage={canManagePerms}
+            />
+          )}
+
+          {task.rejection_reason && (
+            <div className="bg-sap-error-bg border border-sap-error/30 rounded p-3">
+              <div className="flex items-start gap-2">
+                <AlertTriangle className="h-4 w-4 text-sap-error mt-0.5 shrink-0" />
+                <div>
+                  <div className="text-xs font-semibold text-sap-error">Raison du rejet</div>
+                  <div className="text-sm text-sap-text mt-1">{task.rejection_reason}</div>
+                </div>
+              </div>
+            </div>
+          )}
     </>
   );
 }

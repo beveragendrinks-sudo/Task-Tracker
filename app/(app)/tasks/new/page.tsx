@@ -19,7 +19,7 @@ export default async function NewTaskPage() {
     <>
       <Header title="Nouvelle tâche" subtitle="Créer un engagement clair et traçable" />
 
-      <div className="p-8">
+      <div className="p-4 md:p-8">
         <TaskForm
           entities={entities || []}
           departments={departments || []}

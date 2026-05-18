@@ -17,7 +17,7 @@ export default async function AdminUsersPage() {
   return (
     <>
       <Header title="Utilisateurs" subtitle="Créer et gérer les comptes utilisateurs" />
-      <div className="p-8">
+      <div className="p-4 md:p-8">
         <UsersAdminClient
           entities={entities || []}
           departments={departments || []}

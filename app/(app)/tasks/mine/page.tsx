@@ -3,14 +3,21 @@ import { createClient, getCurrentProfile } from '@/lib/supabase/server';
 import Header from '@/components/Header';
 import Stat from '@/components/Stat';
 import TasksTable from '@/components/TasksTable';
+import EntityFilter from '@/components/EntityFilter';
 import { isOverdue } from '@/lib/utils';
 
-export default async function MyTasksPage() {
+export default async function MyTasksPage({
+  searchParams,
+}: {
+  searchParams: { entity_id?: string };
+}) {
   const profile = await getCurrentProfile();
   if (!profile) return null;
 
+  const entityId = searchParams.entity_id ?? null;
   const supabase = createClient();
-  const { data: tasks, error: tasksError } = await supabase
+
+  let query = supabase
     .from('tasks')
     .select(`
       *,
@@ -19,9 +26,16 @@ export default async function MyTasksPage() {
     `)
     .eq('owner_id', profile.id)
     .order('created_at', { ascending: false });
+  if (entityId) query = query.eq('entity_id', entityId);
+
+  const [{ data: tasks, error: tasksError }, { data: entities }] = await Promise.all([
+    query,
+    supabase.from('entities').select('id, name').eq('is_active', true).order('name'),
+  ]);
 
   if (tasksError) console.error('[MyTasksPage] RLS/query error:', tasksError.message);
   const tasksList = tasks || [];
+  const entitiesList = entities || [];
 
   const toAccept = tasksList.filter(t => t.status === 'assigned');
   const active = tasksList.filter(t => ['active', 'pending'].includes(t.status));
@@ -35,7 +49,8 @@ export default async function MyTasksPage() {
     <>
       <Header title="Mes tâches" subtitle="Tâches qui me sont assignées" />
 
-      <div className="p-8 space-y-6">
+      <div className="p-4 md:p-8 space-y-4 md:space-y-6">
+        <EntityFilter entities={entitiesList} currentEntityId={entityId} />
         <div className="grid grid-cols-4 gap-4">
           <Stat icon={Bell} label="À accepter" value={toAccept.length} accent={toAccept.length > 0 ? 'text-orange-700' : ''} />
           <Stat icon={PlayCircle} label="En cours" value={active.length} />

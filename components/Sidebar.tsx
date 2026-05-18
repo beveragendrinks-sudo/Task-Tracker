@@ -4,23 +4,28 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import {
   LayoutDashboard, KanbanSquare, ClipboardList, Send, Activity,
-  TrendingUp, Sparkles, Settings, LogOut, GanttChartSquare
+  TrendingUp, Sparkles, Settings, LogOut, GanttChartSquare, Inbox,
 } from 'lucide-react';
 import { Avatar } from './Badges';
 import { roleLabel } from '@/lib/utils';
 import { createClient } from '@/lib/supabase/client';
 import type { Profile } from '@/types/database';
 
-const navItems = [
-  { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-  { href: '/kanban', label: 'Kanban Board', icon: KanbanSquare },
-  { href: '/tasks/mine', label: 'Mes tâches', icon: ClipboardList },
-  { href: '/tasks/given', label: 'Tâches données', icon: Send },
-  { href: '/workload', label: 'Workload', icon: Activity },
-  { href: '/alerts', label: 'Alertes IA', icon: Sparkles },
-];
+export type SidebarCounts = {
+  mine: number;
+  given: number;
+  alerts: number;
+  emails: number;
+};
 
-export default function Sidebar({ profile }: { profile: Profile }) {
+const defaultCounts: SidebarCounts = {
+  mine: 0,
+  given: 0,
+  alerts: 0,
+  emails: 0,
+};
+
+export default function Sidebar({ profile, counts = defaultCounts }: { profile: Profile; counts?: SidebarCounts }) {
   const pathname = usePathname();
   const router = useRouter();
   const supabase = createClient();
@@ -33,6 +38,17 @@ export default function Sidebar({ profile }: { profile: Profile }) {
     router.push('/login');
     router.refresh();
   };
+
+  const navItems = [
+    { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+    { href: '/kanban', label: 'Kanban Board', icon: KanbanSquare },
+    { href: '/tasks/mine', label: 'Mes tâches', icon: ClipboardList, badge: counts.mine },
+    { href: '/tasks/given', label: 'Tâches données', icon: Send, badge: counts.given },
+    { href: '/workload', label: 'Workload', icon: Activity, roles: ['admin', 'general_manager'] },
+    { href: '/alerts', label: 'Alertes IA', icon: Sparkles, badge: counts.alerts },
+    { href: '/emails', label: 'Emails', icon: Inbox, badge: counts.emails },
+  ];
+
 
   return (
     <aside className="w-64 flex flex-col h-screen sticky top-0 shrink-0" style={{ background: 'var(--sidebar-bg)' }}>
@@ -55,7 +71,7 @@ export default function Sidebar({ profile }: { profile: Profile }) {
           <span className="text-[10px] font-semibold uppercase tracking-[0.15em] text-slate-600">Navigation</span>
         </div>
 
-        {navItems.map(item => {
+        {navItems.filter(item => !item.roles || item.roles.includes(profile.role)).map(item => {
           const Icon = item.icon;
           const active = isActive(item.href);
           return (
@@ -74,6 +90,17 @@ export default function Sidebar({ profile }: { profile: Profile }) {
               {active && <span className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-6 bg-amber-500 rounded-r-full" />}
               <Icon className={`h-4 w-4 shrink-0 ${active ? 'text-amber-400' : 'text-slate-500 group-hover:text-slate-300'}`} />
               <span className="flex-1">{item.label}</span>
+              {item.badge !== undefined && (
+                <span
+                  className={`min-w-[1.5rem] px-1.5 py-0.5 rounded-full text-[11px] font-semibold text-center ${
+                    active
+                      ? 'bg-amber-500/20 text-amber-300'
+                      : 'bg-slate-800 text-slate-300 group-hover:bg-slate-700 group-hover:text-slate-100'
+                  }`}
+                >
+                  {item.badge}
+                </span>
+              )}
             </Link>
           );
         })}

@@ -69,11 +69,19 @@
   }
 
   .page-content {
-    @apply p-7 space-y-6 animate-fade-in;
+    @apply p-4 md:p-7 space-y-4 md:space-y-6 animate-fade-in;
   }
 }
 
 @layer utilities {
+  /* Safe area support for notched phones */
+  .safe-bottom {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  .safe-top {
+    padding-top: env(safe-area-inset-top);
+  }
+
   .scrollbar-thin::-webkit-scrollbar {
     width: 5px;
     height: 5px;

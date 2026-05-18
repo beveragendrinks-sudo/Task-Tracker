@@ -83,7 +83,7 @@ export default function LoginPage() {
             <p className="text-amber-600 text-xs uppercase tracking-widest mt-1">ELKATEB GROUP</p>
           </div>
 
-          <div className="bg-white rounded-2xl p-8 shadow-xl border border-slate-100">
+          <div className="bg-white rounded-2xl p-6 md:p-8 shadow-xl border border-slate-100">
             <h2 className="font-serif text-2xl text-slate-900 mb-1">Connexion</h2>
             <p className="text-sm text-slate-500 mb-7">Accédez à votre espace de pilotage</p>
 

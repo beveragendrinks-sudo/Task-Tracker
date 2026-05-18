@@ -1,26 +1,39 @@
+import { redirect } from 'next/navigation';
 import { AlertTriangle } from 'lucide-react';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { getCurrentProfile } from '@/lib/supabase/server';
 import Header from '@/components/Header';
 import { Avatar } from '@/components/Badges';
 import { roleLabel } from '@/lib/utils';
+import EntityFilter from '@/components/EntityFilter';
 
 export const dynamic = 'force-dynamic';
 
-export default async function WorkloadPage() {
+export default async function WorkloadPage({ searchParams }: { searchParams: { entity_id?: string } }) {
+  const profile = await getCurrentProfile();
+  if (!profile) redirect('/login');
+  if (!['admin', 'general_manager'].includes(profile.role)) redirect('/dashboard');
+
   const supabase = createAdminClient();
+  const entityId = searchParams.entity_id ?? null;
 
-  const { data: users } = await supabase
-    .from('profiles')
-    .select('*, department:departments!profiles_department_id_fkey(name)')
-    .eq('is_active', true)
-    .order('full_name');
-
-  // Toutes les tâches non-terminales
-  const { data: activeTasks } = await supabase
-    .from('tasks')
-    .select('owner_id, accepted_workload_percent, proposed_workload_percent, status')
-    .not('status', 'in', '("approved","cancelled")')
-    .not('owner_id', 'is', null);
+  const [{ data: users }, { data: entities }, { data: activeTasks }] = await Promise.all([
+    supabase
+      .from('profiles')
+      .select('*, department:departments!profiles_department_id_fkey(name)')
+      .eq('is_active', true)
+      .order('full_name'),
+    supabase.from('entities').select('id, name').order('name'),
+    (() => {
+      let q = supabase
+        .from('tasks')
+        .select('owner_id, accepted_workload_percent, proposed_workload_percent, status, entity_id')
+        .not('status', 'in', '("approved","cancelled")')
+        .not('owner_id', 'is', null);
+      if (entityId) q = q.eq('entity_id', entityId);
+      return q;
+    })(),
+  ]);
 
   // Somme de la charge par owner
   const workloadByUser: Record<string, number> = {};
@@ -32,7 +45,11 @@ export default async function WorkloadPage() {
     taskCountByUser[t.owner_id] = (taskCountByUser[t.owner_id] || 0) + 1;
   });
 
-  const usersList = users || [];
+  // When filtered by entity, only show users who have tasks in that entity
+  const allUsers = users || [];
+  const usersList = entityId
+    ? allUsers.filter(u => (taskCountByUser[u.id] || 0) > 0)
+    : allUsers;
   const overloaded  = usersList.filter(u => (workloadByUser[u.id] || 0) > 110);
   const underloaded = usersList.filter(u => (workloadByUser[u.id] || 0) < 70);
   const avgWl = usersList.length
@@ -44,6 +61,10 @@ export default async function WorkloadPage() {
       <Header title="Charge de travail" subtitle="Workload temps réel — vue groupe" />
 
       <div className="page-content">
+        {/* Filtre entité */}
+        <div className="flex items-center justify-between">
+          <EntityFilter entities={entities || []} currentEntityId={entityId} />
+        </div>
         {/* KPIs */}
         <div className="grid grid-cols-3 gap-4">
           <div className="card p-5">

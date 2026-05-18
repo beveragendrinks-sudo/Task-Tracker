@@ -11,7 +11,7 @@ export default async function AdminDepartmentsPage() {
   return (
     <>
       <Header title="Départements" subtitle="Directions et services de l'organisation" />
-      <div className="p-8">
+      <div className="p-4 md:p-8">
         <DepartmentsAdminClient />
       </div>
     </>

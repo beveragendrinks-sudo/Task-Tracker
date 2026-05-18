@@ -11,7 +11,7 @@ export default async function AdminEntitiesPage() {
   return (
     <>
       <Header title="Entités" subtitle="Sociétés et filiales du groupe" />
-      <div className="p-8">
+      <div className="p-4 md:p-8">
         <EntitiesAdminClient />
       </div>
     </>

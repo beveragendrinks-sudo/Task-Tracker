@@ -49,11 +49,11 @@ export async function POST(req: NextRequest) {
   // Le DG peut désigner un autre créateur ; tous les autres sont toujours créateurs eux-mêmes
   const isDG = profile.role === 'general_manager' || profile.role === 'admin';
   const creatorId: string = (isDG && body.created_by) ? body.created_by : profile.id;
-  const useAdminInsert = creatorId !== profile.id;
 
-  const db = useAdminInsert ? createAdminClient() : createClient();
+  // Always use admin client for INSERT to avoid select-after-insert RLS blocking
+  const admin = createAdminClient();
 
-  const { data, error } = await db
+  const { data, error } = await admin
     .from('tasks')
     .insert({
       title: body.title,
@@ -68,13 +68,33 @@ export async function POST(req: NextRequest) {
       proposed_deadline: body.proposed_deadline || null,
       proposed_workload_percent: body.proposed_workload_percent || null,
       definition_of_done: dod,
+      is_private: body.is_private ?? false,
     })
     .select()
     .single();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  // Notification owner via admin client (bypass RLS)
+  // Contributors
+  const contributors: string[] = Array.isArray(body.contributors) ? body.contributors : [];
+  if (contributors.length > 0) {
+    await admin.from('task_contributors').insert(
+      contributors.map((uid: string) => ({ task_id: data.id, user_id: uid, added_by: creatorId }))
+    );
+  }
+
+  // Explicit permissions (private tasks only)
+  const authorizedUsers: string[] = body.is_private && Array.isArray(body.authorizedUsers) ? body.authorizedUsers : [];
+  if (authorizedUsers.length > 0) {
+    await admin.from('task_permissions').insert(
+      authorizedUsers.map((uid: string) => ({
+        task_id: data.id, user_id: uid,
+        permission_type: 'viewer', created_by: creatorId,
+      }))
+    );
+  }
+
+  // Notification owner
   try {
     const { createAndSendNotification } = await import('@/lib/notifications');
     await createAndSendNotification({

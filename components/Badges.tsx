@@ -1,5 +1,6 @@
-import { PRIORITY_CONFIG, STATUS_CONFIG, getInitials } from '@/lib/utils';
+import { PRIORITY_CONFIG, STATUS_CONFIG, getInitials,cn } from '@/lib/utils';
 import type { TaskPriority, TaskStatus } from '@/types/database';
+import type { LucideIcon } from 'lucide-react';
 
 export function Avatar({ name, size = 'sm' }: { name: string; size?: 'xs' | 'sm' | 'md' | 'lg' }) {
   const sizes = {
@@ -32,5 +33,30 @@ export function StatusBadge({ status }: { status: TaskStatus }) {
     }`}>
       {STATUS_CONFIG[status].label}
     </span>
+  );
+}
+export function Tile({
+  icon: Icon, label, value, sub, semantic
+}: {
+  icon: LucideIcon; label: string; value: number|string; sub?: string;
+  semantic?: 'critical'|'warning'|'success'|'info'|'neutral';
+}) {
+  const semanticCls = {
+    critical: 'text-sap-error',
+    warning: 'text-sap-warning',
+    success: 'text-sap-success',
+    info: 'text-sap-info',
+    neutral: 'text-sap-text',
+  }[semantic || 'neutral'];
+
+  return (
+    <div className="bg-sap-surface border border-sap-border rounded shadow-sap-tile p-4 hover:shadow-sap-hover transition-shadow">
+      <div className="flex items-start justify-between mb-2">
+        <div className="text-xs text-sap-text-secondary font-normal uppercase tracking-wide">{label}</div>
+        <Icon className="h-4 w-4 text-sap-text-secondary" />
+      </div>
+      <div className={cn('text-3xl font-light tabular-nums', semanticCls)}>{value}</div>
+      {sub && <div className="mt-1 text-xs text-sap-text-secondary">{sub}</div>}
+    </div>
   );
 }

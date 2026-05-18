@@ -26,7 +26,7 @@ export default async function AlertsPage() {
     <>
       <Header title="Alertes IA" subtitle="Détection automatique de risques et recommandations" />
 
-      <div className="p-8 space-y-4">
+      <div className="p-4 md:p-8 space-y-4">
         {list.length === 0 ? (
           <div className="bg-white border border-stone-200 rounded-xl p-16 text-center">
             <Sparkles className="h-12 w-12 text-stone-300 mx-auto mb-4" />

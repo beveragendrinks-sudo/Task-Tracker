@@ -47,7 +47,7 @@ export default async function AdminPage() {
     <>
       <Header title="Administration" subtitle="Gestion des utilisateurs, entités et départements" />
 
-      <div className="p-8">
+      <div className="p-4 md:p-8">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
           {cards.map(card => {
             const Icon = card.icon;

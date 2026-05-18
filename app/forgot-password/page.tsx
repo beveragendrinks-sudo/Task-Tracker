@@ -51,7 +51,7 @@ export default function ForgotPasswordPage() {
           <p className="text-amber-400 text-sm uppercase tracking-[0.3em] mt-2">Group Operating System</p>
         </div>
 
-        <div className="bg-white rounded-2xl p-8 shadow-2xl">
+        <div className="bg-white rounded-2xl p-6 md:p-8 shadow-2xl">
           {sent ? (
             <div className="text-center">
               <div className="flex justify-center mb-4">

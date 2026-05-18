@@ -3,12 +3,18 @@ import { Calendar, MessageSquare, Paperclip, Sparkles, Ban } from 'lucide-react'
 import { createClient } from '@/lib/supabase/server';
 import Header from '@/components/Header';
 import { PriorityBadge, Avatar } from '@/components/Badges';
+import EntityFilter from '@/components/EntityFilter';
 import { KANBAN_COLUMNS, STATUS_CONFIG, formatDateShort, isOverdue } from '@/lib/utils';
 
-export default async function KanbanPage() {
+export default async function KanbanPage({
+  searchParams,
+}: {
+  searchParams: { entity_id?: string };
+}) {
   const supabase = createClient();
+  const entityId = searchParams.entity_id ?? null;
 
-  const { data: tasks } = await supabase
+  let tasksQuery = supabase
     .from('tasks')
     .select(`
       *,
@@ -16,19 +22,29 @@ export default async function KanbanPage() {
       owner:profiles!tasks_owner_id_fkey(id, full_name)
     `)
     .order('priority', { ascending: true });
+  if (entityId) tasksQuery = tasksQuery.eq('entity_id', entityId);
+
+  const [{ data: tasks }, { data: entities }] = await Promise.all([
+    tasksQuery,
+    supabase.from('entities').select('id, name').eq('is_active', true).order('name'),
+  ]);
 
   const tasksList = tasks || [];
+  const entitiesList = entities || [];
 
   return (
     <>
       <Header title="Kanban Board" subtitle="Pilotage visuel des tâches" />
 
-      <div className="p-8">
-        <div className="flex gap-4 overflow-x-auto pb-4">
+      <div className="p-4 md:p-8">
+        <div className="mb-4">
+          <EntityFilter entities={entitiesList} currentEntityId={entityId} />
+        </div>
+        <div className="flex gap-3 md:gap-4 overflow-x-auto pb-4 -mx-4 md:mx-0 px-4 md:px-0 snap-x snap-mandatory">
           {KANBAN_COLUMNS.map(status => {
             const colTasks = tasksList.filter(t => t.status === status);
             return (
-              <div key={status} className="bg-stone-100 rounded-xl p-3 min-w-[280px] w-[280px] shrink-0">
+              <div key={status} className="bg-stone-100 rounded-xl p-3 min-w-[calc(85vw)] sm:min-w-[280px] w-[calc(85vw)] sm:w-[280px] shrink-0 snap-start">
                 <div className="flex items-center justify-between mb-3 px-1">
                   <span className="font-serif text-sm font-medium text-stone-800">
                     {STATUS_CONFIG[status].kanban}

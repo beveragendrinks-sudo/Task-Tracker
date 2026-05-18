@@ -2,9 +2,10 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Plus, X, Send, AlertCircle } from 'lucide-react';
-import { PriorityBadge } from './Badges';
+import { Plus, X, Send, AlertCircle, ChevronDown } from 'lucide-react';
+import { Avatar, PriorityBadge } from './Badges';
 import { PRIORITY_CONFIG, COMPLEXITY_CONFIG } from '@/lib/utils';
+import PrivacyToggle from './PrivacyToggle';
 import type { Profile, Entity, Department, TaskPriority, TaskComplexity } from '@/types/database';
 
 interface Props {
@@ -18,6 +19,8 @@ export default function TaskForm({ entities, departments, users, currentProfile 
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [contribOpen, setContribOpen] = useState(false);
+
 
   const [form, setForm] = useState({
     title: '',
@@ -25,11 +28,14 @@ export default function TaskForm({ entities, departments, users, currentProfile 
     entity_id: entities[0]?.id || '',
     primary_department_id: departments[0]?.id || '',
     owner_id: '',
+    contributors: [] as string[],
+    authorizedUsers: [] as string[],
     created_by: currentProfile.id,
     priority: 'P3' as TaskPriority,
     complexity: 'medium' as TaskComplexity,
     proposed_deadline: '',
     proposed_workload_percent: 25,
+    is_private: false,
     definition_of_done: ['', '', ''],
   });
 
@@ -66,6 +72,22 @@ export default function TaskForm({ entities, departments, users, currentProfile 
     medium: 'border-amber-700',
     complex: 'border-orange-600',
     strategic: 'border-sky-600',
+  };
+
+  const toggleContrib = (uid: string) => {
+    if (uid === form.owner_id) return;
+    setForm(f => ({
+      ...f,
+      contributors: f.contributors.includes(uid) ? f.contributors.filter(x => x !== uid) : [...f.contributors, uid]
+    }));
+  };
+
+  const toggleAuthorized = (uid: string) => {
+    if (uid === form.owner_id || uid === currentProfile.id) return;
+    setForm(f => ({
+      ...f,
+      authorizedUsers: f.authorizedUsers.includes(uid) ? f.authorizedUsers.filter(x => x !== uid) : [...f.authorizedUsers, uid]
+    }));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -109,7 +131,10 @@ export default function TaskForm({ entities, departments, users, currentProfile 
         complexity: form.complexity,
         proposed_deadline: form.proposed_deadline || null,
         proposed_workload_percent: form.proposed_workload_percent,
+        is_private: form.is_private,
         definition_of_done: dod,
+        contributors: form.contributors,
+        authorizedUsers: form.is_private ? form.authorizedUsers : [],
       }),
     });
 
@@ -124,6 +149,9 @@ export default function TaskForm({ entities, departments, users, currentProfile 
     router.push(`/tasks/${task.id}`);
     router.refresh();
   };
+
+  const activeUsers = users.filter(u => u.is_active);
+
 
   return (
     <form onSubmit={handleSubmit} className="max-w-3xl bg-white border border-stone-200 rounded-xl p-6 space-y-5">
@@ -222,6 +250,45 @@ export default function TaskForm({ entities, departments, users, currentProfile 
           ))}
         </select>
       </div>
+      {/* Contributors */}
+        <div>
+          <label className="block text-xs font-medium text-sap-text mb-1">
+            Contributeurs <span className="text-sap-text-secondary font-normal">(optionnel)</span>
+          </label>
+          {form.contributors.length > 0 && (
+            <div className="mb-2 flex flex-wrap gap-1.5">
+              {form.contributors.map(cid => {
+                const u = users.find(x => x.id === cid);
+                return u ? (
+                  <span key={cid} className="inline-flex items-center gap-1.5 bg-sap-info-bg border border-sap-info/30 rounded-sm pl-1 pr-1.5 py-0.5">
+                    <Avatar name={u.full_name} size="xs" />
+                    <span className="text-xs text-sap-text">{u.full_name}</span>
+                    <button type="button" onClick={() => toggleContrib(cid)}><X className="h-3 w-3" /></button>
+                  </span>
+                ) : null;
+              })}
+            </div>
+          )}
+          <button type="button" onClick={() => setContribOpen(!contribOpen)}
+            className="w-full text-left border border-sap-border rounded px-2 py-1.5 text-sm flex items-center justify-between hover:border-sap-text-secondary bg-white">
+            <span className="text-sap-text-secondary">{form.contributors.length === 0 ? 'Ajouter…' : `${form.contributors.length} sélectionné(s)`}</span>
+            <ChevronDown className={`h-4 w-4 text-sap-text-secondary transition-transform ${contribOpen ? 'rotate-180' : ''}`} />
+          </button>
+          {contribOpen && (
+            <div className="mt-1 border border-sap-border rounded max-h-56 overflow-y-auto bg-white shadow-sap-card">
+              {activeUsers.filter(u => u.id !== form.owner_id).map(u => (
+                <label key={u.id} className="flex items-center gap-3 px-3 py-1.5 hover:bg-sap-bg cursor-pointer">
+                  <input type="checkbox" checked={form.contributors.includes(u.id)} onChange={() => toggleContrib(u.id)} className="rounded text-sap-brand" />
+                  <Avatar name={u.full_name} size="xs" />
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm text-sap-text">{u.full_name}</div>
+                    <div className="text-xs text-sap-text-secondary truncate">{u.job_title}</div>
+                  </div>
+                </label>
+              ))}
+            </div>
+          )}
+        </div>
 
       {/* Priorité */}
       <div>
@@ -355,6 +422,41 @@ export default function TaskForm({ entities, departments, users, currentProfile 
           </button>
         </div>
       </div>
+      {/* PRIVACY */}
+        <PrivacyToggle
+          value={form.is_private}
+          onChange={v => setForm({...form, is_private: v})}
+        />
+
+        {/* Utilisateurs autorisés (si privacy ON) */}
+        {form.is_private && (
+          <div className="border border-sap-border rounded p-3 bg-sap-bg">
+            <label className="block text-xs font-medium text-sap-text mb-1">
+              Utilisateurs autorisés supplémentaires
+            </label>
+            <p className="text-xs text-sap-text-secondary mb-2">
+              Par défaut, seuls vous (créateur) et le responsable ont accès. Ajoutez d'autres personnes ici si nécessaire.
+            </p>
+            <div className="space-y-1 max-h-48 overflow-y-auto bg-white border border-sap-border rounded">
+              {activeUsers.filter(u => u.id !== form.owner_id && u.id !== currentProfile.id).map(u => (
+                <label key={u.id} className="flex items-center gap-2 px-2 py-1.5 hover:bg-sap-bg cursor-pointer">
+                  <input type="checkbox" checked={form.authorizedUsers.includes(u.id)}
+                    onChange={() => toggleAuthorized(u.id)} className="rounded text-sap-brand" />
+                  <Avatar name={u.full_name} size="xs" />
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm text-sap-text">{u.full_name}</div>
+                    <div className="text-xs text-sap-text-secondary truncate">{u.job_title}</div>
+                  </div>
+                </label>
+              ))}
+            </div>
+            {form.authorizedUsers.length > 0 && (
+              <div className="mt-2 text-xs text-sap-text-secondary">
+                {form.authorizedUsers.length} utilisateur(s) supplémentaire(s) auront accès.
+              </div>
+            )}
+          </div>
+        )}
 
       {/* Erreur */}
       {error && (

@@ -11,9 +11,9 @@ export type TaskPriority = 'P1' | 'P2' | 'P3' | 'P4';
 export type TaskComplexity = 'simple' | 'medium' | 'complex' | 'strategic';
 
 export type TaskStatus =
-  | 'draft' | 'assigned' | 'negotiation' | 'accepted' | 'active'
-  | 'pending' | 'on_hold' | 'blocked'
-  | 'closed_by_owner' | 'rejected_closure' | 'approved' | 'cancelled';
+  | 'draft'|'assigned'|'negotiation'|'accepted'|'active'
+  | 'pending'|'on_hold'|'blocked'
+  | 'closed_by_owner'|'rejected_closure'|'approved'|'cancelled';
 
 export type MilestoneStatus = 'pending' | 'in_progress' | 'done' | 'overdue' | 'cancelled';
 
@@ -23,6 +23,8 @@ export type BlockerType =
   | 'technical_issue' | 'financial_issue' | 'legal_issue' | 'other';
 
 export type AlertSeverity = 'info' | 'warning' | 'critical';
+
+export type PermissionType = 'viewer'|'editor'|'owner';
 
 export interface Profile {
   id: string;
@@ -99,6 +101,8 @@ export interface Task {
   ai_summary: string | null;
   ai_suggestions: any;
   is_locked: boolean;
+  is_private: boolean;
+  is_authorized?: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -108,6 +112,59 @@ export interface TaskWithRelations extends Task {
   primary_department?: Department;
   creator?: Profile;
   owner?: Profile;
+  contributors?: { user_id: string; profile: Profile }[];
+  permissions?: TaskPermission[];
+  subtasks?: Subtask[];
+}
+
+export interface Subtask {
+  id: string;
+  parent_task_id: string;
+  title: string;
+  description: string | null;
+  owner_id: string | null;
+  created_by: string;
+  status: TaskStatus;
+  priority: TaskPriority;
+  due_date: string | null;
+  workload_percent: number | null;
+  is_private: boolean;
+  is_authorized?: boolean;
+  accepted_at: string | null;
+  closed_at: string | null;
+  approved_at: string | null;
+  cancelled_at: string | null;
+  rejection_reason: string | null;
+  completed_at: string | null;
+  position: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SubtaskWithRelations extends Subtask {
+  owner?: Profile;
+  creator?: Profile;
+  permissions?: SubtaskPermission[];
+}
+
+export interface TaskPermission {
+  id: string;
+  task_id: string;
+  user_id: string;
+  permission_type: PermissionType;
+  created_by: string | null;
+  created_at: string;
+  profile?: Profile;
+}
+
+export interface SubtaskPermission {
+  id: string;
+  subtask_id: string;
+  user_id: string;
+  permission_type: PermissionType;
+  created_by: string | null;
+  created_at: string;
+  profile?: Profile;
 }
 
 export interface Milestone {
@@ -158,6 +215,8 @@ export interface Notification {
   related_user_id: string | null;
   is_read: boolean;
   read_at: string | null;
+  email_sent: boolean;
+  email_sent_at: string | null;
   created_at: string;
 }
 
@@ -173,5 +232,27 @@ export interface AIAlert {
   related_entity_id: string | null;
   recommendations: any;
   status: 'open' | 'acknowledged' | 'resolved' | 'dismissed';
+  created_at: string;
+}
+export interface SentEmail {
+  id: string; trigger_type: string;
+  to_email: string; to_user_id: string | null;
+  subject: string; body: string;
+  task_id: string | null;
+  sent_at: string; status: string;
+}
+
+export interface AuditLogEntry {
+  id: string;
+  user_id: string | null;
+  user_role: UserRole | null;
+  action: string;
+  object_type: 'task'|'subtask'|'comment'|'attachment'|'permission'|'exception';
+  object_id: string | null;
+  old_value: any;
+  new_value: any;
+  reason: string | null;
+  ip_address: string | null;
+  user_agent: string | null;
   created_at: string;
 }
