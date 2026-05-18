@@ -35,3 +35,8 @@ next-env.d.ts
 
 DEPLOYMENT.md
 README.md
+API_REFERENCE.md
+
+supabase/04_migration_v2.1.sql
+supabase/05_rls_privacy.sql
+supabase/06_fix_rls_privacy.sql
