@@ -23,15 +23,13 @@ export const SUBTASK_TRANSITIONS: SubtaskTransition[] = [
   { from:'accepted',       to:'cancelled',        allowedRoles:['creator','parent_owner','dg','admin'], label:'Annuler', tone:'negative' },
 
   // En cours
-  { from:'active',         to:'pending',          allowedRoles:['owner'], label:'Mettre en attente', tone:'neutral', requiresReason:true },
-  { from:'active',         to:'on_hold',          allowedRoles:['owner','dg','admin'], label:'Mettre en pause', tone:'neutral', requiresReason:true },
-  { from:'active',         to:'blocked',          allowedRoles:['owner'], label:'Déclarer blocage', tone:'negative', requiresReason:true },
-  { from:'active',         to:'closed_by_owner',  allowedRoles:['owner'], label:'Marquer terminée', tone:'positive' },
+  { from:'active',         to:'on_hold',          allowedRoles:['owner','creator','dg','admin'], label:'Mettre en pause', tone:'neutral', requiresReason:true },
+  { from:'active',         to:'blocked',          allowedRoles:['owner','creator'], label:'Déclarer blocage', tone:'negative', requiresReason:true },
+  { from:'active',         to:'closed_by_owner',  allowedRoles:['owner','creator'], label:'Marquer terminée', tone:'positive' },
 
   // Reprise
-  { from:'pending',        to:'active',           allowedRoles:['owner'], label:'Reprendre', tone:'positive' },
-  { from:'on_hold',        to:'active',           allowedRoles:['owner','dg','admin'], label:'Reprendre', tone:'positive' },
-  { from:'blocked',        to:'active',           allowedRoles:['owner','parent_owner','dg','admin'], label:'Résoudre blocage', tone:'positive' },
+  { from:'on_hold',        to:'active',           allowedRoles:['owner','creator','dg','admin'], label:'Reprendre', tone:'positive' },
+  { from:'blocked',        to:'active',           allowedRoles:['owner','creator','parent_owner','dg','admin'], label:'Résoudre blocage', tone:'positive' },
 
   // Approbation finale
   { from:'closed_by_owner', to:'approved',        allowedRoles:['creator','parent_owner','parent_creator','dg','admin'], label:'Approuver', tone:'positive' },
@@ -83,7 +81,6 @@ export const SUBTASK_STATUS_LABEL: Partial<Record<TaskStatus, string>> = {
   draft: 'Backlog',
   accepted: 'Acceptée',
   active: 'Active',
-  pending: 'En attente',
   on_hold: 'En pause',
   blocked: 'Bloquée',
   closed_by_owner: 'Fermée',

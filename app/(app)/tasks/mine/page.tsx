@@ -51,7 +51,7 @@ export default async function MyTasksPage({
 
       <div className="p-4 md:p-8 space-y-4 md:space-y-6">
         <EntityFilter entities={entitiesList} currentEntityId={entityId} />
-        <div className="grid grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
           <Stat icon={Bell} label="À accepter" value={toAccept.length} accent={toAccept.length > 0 ? 'text-orange-700' : ''} />
           <Stat icon={PlayCircle} label="En cours" value={active.length} />
           <Stat icon={Ban} label="Bloquées" value={blocked.length} accent={blocked.length > 0 ? 'text-red-700' : ''} />

@@ -293,7 +293,7 @@ export default function TaskForm({ entities, departments, users, currentProfile 
       {/* Priorité */}
       <div>
         <label className="block text-sm font-medium text-stone-700 mb-2">Priorité</label>
-        <div className="grid grid-cols-4 gap-2">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
           {(Object.keys(PRIORITY_CONFIG) as TaskPriority[]).map(p => {
             const selected = form.priority === p;
             const base = 'px-3 py-2 border-2 rounded-lg text-sm transition-all duration-150 flex flex-col items-start';
@@ -326,7 +326,7 @@ export default function TaskForm({ entities, departments, users, currentProfile 
       {/* Complexité */}
       <div>
         <label className="block text-sm font-medium text-stone-700 mb-2">Complexité</label>
-        <div className="grid grid-cols-4 gap-2">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
           {(Object.keys(COMPLEXITY_CONFIG) as TaskComplexity[]).map(c => {
             const selectedC = form.complexity === c;
             const baseC = 'px-3 py-2 border-2 rounded-lg text-sm transition-all duration-150 flex flex-col items-start';

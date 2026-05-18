@@ -1,9 +1,9 @@
 import {
   ClipboardList, Flag, AlertTriangle, Ban, Clock, FileCheck2,
-  Activity, Users, ChevronRight
+  Activity, Users, ChevronRight, Bell
 } from 'lucide-react';
 import Link from 'next/link';
-import { createClient } from '@/lib/supabase/server';
+import { createClient, getCurrentProfile } from '@/lib/supabase/server';
 import Header from '@/components/Header';
 import Stat from '@/components/Stat';
 import { PriorityBadge, StatusBadge, Avatar } from '@/components/Badges';
@@ -11,6 +11,7 @@ import { formatDateShort, isOverdue } from '@/lib/utils';
 
 export default async function DashboardPage() {
   const supabase = createClient();
+  const profile = await getCurrentProfile();
 
   // Récupération des tâches accessibles (filtrées par RLS)
   const { data: tasks } = await supabase
@@ -23,12 +24,21 @@ export default async function DashboardPage() {
     `)
     .order('created_at', { ascending: false });
 
+  // Tasks assigned to current user waiting for acceptance
+  // Derived from tasksList to avoid a separate query + potential RLS edge cases
   const tasksList = tasks || [];
+  const pendingList = profile
+    ? tasksList.filter(t => t.owner_id === profile.id && t.status === 'assigned')
+    : [];
 
   // KPIs
   const open = tasksList.filter(t => !['approved', 'cancelled'].includes(t.status));
   const p1Open = open.filter(t => t.priority === 'P1');
   const p1Late = p1Open.filter(t =>
+    t.accepted_deadline && isOverdue(t.accepted_deadline) &&
+    ['active', 'pending', 'blocked', 'accepted'].includes(t.status)
+  );
+  const pLate = open.filter(t =>
     t.accepted_deadline && isOverdue(t.accepted_deadline) &&
     ['active', 'pending', 'blocked', 'accepted'].includes(t.status)
   );
@@ -45,16 +55,42 @@ export default async function DashboardPage() {
       <Header title="Tableau de bord" subtitle="Vue temps réel · Pilotage groupe" />
 
       <div className="p-4 md:p-8 space-y-4 md:space-y-6">
+        {/* Banner: tâches à accepter */}
+        {pendingList.length > 0 && (
+          <div className="bg-amber-50 border border-amber-300 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center gap-3">
+            <div className="flex items-center gap-3 flex-1 min-w-0">
+              <div className="h-9 w-9 rounded-full bg-amber-100 flex items-center justify-center shrink-0">
+                <Bell className="h-4 w-4 text-amber-600" />
+              </div>
+              <div className="min-w-0">
+                <div className="font-semibold text-amber-900 text-sm">
+                  {pendingList.length === 1
+                    ? 'Vous avez 1 nouvelle tâche à accepter'
+                    : `Vous avez ${pendingList.length} nouvelles tâches à accepter`}
+                </div>
+                <div className="text-xs text-amber-700 mt-0.5 truncate">
+                  {pendingList.map(t => t.title).join(' · ')}
+                </div>
+              </div>
+            </div>
+            <Link
+              href="/tasks/mine"
+              className="shrink-0 text-sm font-medium px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg transition-colors"
+            >
+              Voir mes tâches
+            </Link>
+          </div>
+        )}
         {/* KPI grid */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           <Stat icon={ClipboardList} label="Tâches ouvertes" value={open.length} sub={`${tasksList.length} au total`} />
           <Stat icon={Flag} label="P1 critiques" value={p1Open.length} accent={p1Open.length > 0 ? 'text-red-700' : ''} />
-          <Stat icon={AlertTriangle} label="P1 en retard" value={p1Late.length}
-                accent={p1Late.length > 0 ? 'text-red-700' : ''} sub="Action DG requise" />
+          <Stat icon={AlertTriangle} label="Tâches en retard" value={pLate.length}
+                accent={pLate.length > 0 ? 'text-red-700' : ''} sub="Action requise" />
           <Stat icon={Ban} label="Tâches bloquées" value={blocked.length}
                 accent={blocked.length > 0 ? 'text-orange-700' : ''} />
           <Stat icon={Clock} label="Non acceptées" value={notAccepted.length} sub="Délai > 48h" />
-          <Stat icon={FileCheck2} label="À approuver" value={awaitingApproval.length} sub="Action créateurs" />
+          <Stat icon={FileCheck2} label="À Valider" value={awaitingApproval.length} sub="Action créateurs" />
           <Stat icon={Activity} label="En cours" value={open.filter(t => t.status === 'active').length} />
           <Stat icon={Users} label="En négociation" value={open.filter(t => t.status === 'negotiation').length} />
         </div>

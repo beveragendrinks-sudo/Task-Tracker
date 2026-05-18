@@ -2,21 +2,20 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { CheckCircle2, Loader2, AlertCircle } from 'lucide-react';
-import { createClient } from '@/lib/supabase/client';
+import { CheckCircle2, Loader2, AlertCircle, X, Lock } from 'lucide-react';
 import { getAvailableSubtaskTransitions } from '@/lib/subtask-workflow';
-import type { Profile, Subtask, Task, TaskStatus } from '@/types/database';
+import type { Profile, SubtaskWithRelations, Task, TaskStatus } from '@/types/database';
 
 interface Props {
-  subtask: Subtask;
+  subtask: SubtaskWithRelations;
   parentTask: Task;
   profile: Profile;
   compact?: boolean;
+  dependencyReady?: boolean;
 }
 
-export default function SubtaskActions({ subtask, parentTask, profile, compact = false }: Props) {
+export default function SubtaskActions({ subtask, parentTask, profile, compact = false, dependencyReady = true }: Props) {
   const router = useRouter();
-  const supabase = createClient();
   const [loading, setLoading] = useState<string|null>(null);
   const [error, setError] = useState<string|null>(null);
   const [showReason, setShowReason] = useState<{ to: TaskStatus; label: string } | null>(null);
@@ -33,37 +32,22 @@ export default function SubtaskActions({ subtask, parentTask, profile, compact =
     profile.id, profile.role
   );
 
+  // Block "Démarrer" if dependency not yet complete
+  const depBlocksStart = !dependencyReady && transitions.some(t => t.to === 'active');
+  const visibleTransitions = transitions.filter(t => !(depBlocksStart && t.to === 'active'));
+
   const handleTransition = async (toStatus: TaskStatus, reasonText?: string) => {
     setError(null);
     setLoading(toStatus);
 
-    const updates: any = { status: toStatus };
-    if (toStatus === 'accepted')        updates.accepted_at = new Date().toISOString();
-    if (toStatus === 'closed_by_owner') updates.closed_at = new Date().toISOString();
-    if (toStatus === 'approved')        { updates.approved_at = new Date().toISOString(); updates.completed_at = new Date().toISOString(); }
-    if (toStatus === 'rejected_closure') updates.rejection_reason = reasonText;
-    if (toStatus === 'cancelled')       updates.cancelled_at = new Date().toISOString();
-
-    const { error: err } = await supabase.from('task_subtasks').update(updates).eq('id', subtask.id);
-    if (err) { setError(err.message); setLoading(null); return; }
-
-    if (reasonText) {
-      await supabase.from('subtask_status_history').insert({
-        subtask_id: subtask.id, from_status: subtask.status, to_status: toStatus,
-        changed_by: profile.id, reason: reasonText,
-      });
-    }
-
-    await supabase.from('audit_log').insert({
-      user_id: profile.id,
-      user_role: profile.role,
-      action: `subtask.transition.${toStatus}`,
-      object_type: 'subtask',
-      object_id: subtask.id,
-      old_value: { status: subtask.status },
-      new_value: { status: toStatus },
-      reason: reasonText,
+    const res = await fetch(`/api/subtasks/${subtask.id}/transition`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ to_status: toStatus, reason: reasonText }),
     });
+
+    const json = await res.json();
+    if (!res.ok) { setError(json.error || 'Erreur lors de la transition'); setLoading(null); return; }
 
     setLoading(null);
     setShowReason(null);
@@ -76,47 +60,60 @@ export default function SubtaskActions({ subtask, parentTask, profile, compact =
     else handleTransition(toStatus);
   };
 
-  if (transitions.length === 0) return null;
+  if (transitions.length === 0 && !depBlocksStart) return null;
 
   return (
     <>
-      <div className={compact ? 'flex flex-wrap gap-1' : 'space-y-1.5'}>
-        {transitions.map(t => {
-          const bgCls = t.tone === 'positive' ? 'bg-sap-success hover:bg-sap-success/90'
-                     : t.tone === 'negative' ? 'bg-sap-error hover:bg-sap-error/90'
-                     : 'bg-sap-shell hover:bg-sap-shell-dark';
+      <div className={compact ? 'flex flex-wrap gap-1.5 mt-1' : 'space-y-1.5'}>
+        {visibleTransitions.map(t => {
+          const cls =
+            t.tone === 'positive' ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
+          : t.tone === 'negative' ? 'bg-red-600 hover:bg-red-700 text-white'
+          : 'bg-slate-700 hover:bg-slate-800 text-white';
           return (
             <button key={t.to} onClick={() => onClick(t.to, t.label, t.requiresReason)}
               disabled={loading !== null}
-              className={`${compact ? 'px-2 py-1 text-xs' : 'w-full justify-center px-3 py-1.5 text-sm'} flex items-center gap-1.5 rounded font-medium text-white disabled:opacity-50 ${bgCls}`}>
+              className={`${compact ? 'px-2.5 py-1 text-xs' : 'w-full justify-center px-3 py-1.5 text-sm'} inline-flex items-center gap-1.5 rounded-lg font-medium disabled:opacity-50 transition-colors ${cls}`}>
               {loading === t.to ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
               {t.label}
             </button>
           );
         })}
+        {depBlocksStart && (
+          <div className={`${compact ? 'text-xs' : 'text-sm'} flex items-center gap-1.5 text-amber-700 bg-amber-50 border border-amber-200 px-2.5 py-1.5 rounded-lg`}>
+            <Lock className="h-3.5 w-3.5 shrink-0" />
+            <span>En attente de la sous-tâche dépendante</span>
+          </div>
+        )}
       </div>
 
       {error && (
-        <div className="mt-2 bg-sap-error-bg border border-sap-error/30 text-sap-error text-xs rounded px-2 py-1.5 flex items-start gap-1.5">
+        <div className="mt-2 bg-red-50 border border-red-200 text-red-700 text-xs rounded-lg px-2.5 py-2 flex items-start gap-1.5">
           <AlertCircle className="h-3.5 w-3.5 mt-0.5 shrink-0" /><span>{error}</span>
         </div>
       )}
 
       {showReason && (
-        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded shadow-sap-card max-w-md w-full">
-            <div className="border-b border-sap-border px-5 py-3">
-              <h3 className="text-lg font-light text-sap-text">{showReason.label}</h3>
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl shadow-xl max-w-md w-full">
+            <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
+              <h3 className="font-serif text-lg text-slate-900">{showReason.label}</h3>
+              <button onClick={() => { setShowReason(null); setReason(''); }}
+                className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400">
+                <X className="h-4 w-4" />
+              </button>
             </div>
             <div className="p-5">
-              <p className="text-sm text-sap-text-secondary mb-3">Raison obligatoire.</p>
-              <textarea value={reason} onChange={e => setReason(e.target.value)} rows={4} placeholder="Expliquez..."
-                className="w-full border border-sap-border rounded px-2 py-1.5 text-sm" autoFocus />
+              <p className="text-sm text-slate-500 mb-3">Raison obligatoire.</p>
+              <textarea value={reason} onChange={e => setReason(e.target.value)} rows={4}
+                placeholder="Expliquez la raison..."
+                className="input-base resize-none" autoFocus />
             </div>
-            <div className="border-t border-sap-border bg-sap-bg px-5 py-3 flex justify-end gap-2">
-              <button onClick={() => { setShowReason(null); setReason(''); }} className="px-3 py-1.5 text-sm text-sap-text hover:bg-sap-border-light rounded">Annuler</button>
-              <button onClick={() => handleTransition(showReason.to, reason)} disabled={!reason.trim() || loading !== null}
-                className="px-3 py-1.5 bg-sap-brand text-white text-sm rounded hover:bg-sap-brand-dark disabled:opacity-50">Confirmer</button>
+            <div className="px-5 py-4 border-t border-slate-100 bg-slate-50 flex justify-end gap-2 rounded-b-xl">
+              <button onClick={() => { setShowReason(null); setReason(''); }} className="btn-secondary">Annuler</button>
+              <button onClick={() => handleTransition(showReason.to, reason)}
+                disabled={!reason.trim() || loading !== null}
+                className="btn-primary">Confirmer</button>
             </div>
           </div>
         </div>

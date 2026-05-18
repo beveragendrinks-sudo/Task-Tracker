@@ -1,18 +1,23 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
 
 export async function GET(request: Request, { params }: { params: { id: string } }) {
-  const supabase = createClient();
-  const { data, error } = await supabase
+  const admin = createAdminClient();
+  const { data, error } = await admin
     .from('task_subtasks')
-    .select(`*,
-      owner:profiles!task_subtasks_owner_id_fkey(*),
-      creator:profiles!task_subtasks_created_by_fkey(*),
-      permissions:subtask_permissions(*, profile:profiles(id, full_name, job_title, email))`)
+    .select('*')
     .eq('id', params.id)
     .single();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 404 });
+
+  // Enrich with owner profile
+  if (data?.owner_id) {
+    const { data: owner } = await admin.from('profiles').select('id, full_name, job_title, email').eq('id', data.owner_id).single();
+    (data as any).owner = owner ?? null;
+  }
+
   return NextResponse.json({ subtask: data });
 }
 

@@ -15,12 +15,12 @@ export const STATUS_CONFIG: Record<TaskStatus, { label: string; color: string; k
   negotiation:     { label: 'Négociation',     color: 'bg-orange-100 text-orange-800 border-orange-300', kanban: 'Négociation' },
   accepted:        { label: 'Acceptée',        color: 'bg-sky-100 text-sky-800 border-sky-300', kanban: 'Acceptée' },
   active:          { label: 'En cours',        color: 'bg-blue-100 text-blue-800 border-blue-300', kanban: 'En cours' },
-  pending:         { label: 'En attente',      color: 'bg-yellow-100 text-yellow-800 border-yellow-300', kanban: 'En attente' },
+  //pending:         { label: 'En attente',      color: 'bg-yellow-100 text-yellow-800 border-yellow-300', kanban: 'En attente' },
   on_hold:         { label: 'En pause',        color: 'bg-purple-100 text-purple-800 border-purple-300', kanban: 'En pause' },
   blocked:         { label: 'Bloquée',         color: 'bg-red-100 text-red-800 border-red-400', kanban: 'Bloquée' },
-  closed_by_owner: { label: 'Fermée Owner',    color: 'bg-teal-100 text-teal-800 border-teal-300', kanban: 'À approuver' },
+  closed_by_owner: { label: 'Fermée Owner',    color: 'bg-teal-100 text-teal-800 border-teal-300', kanban: 'À Valider' },
   rejected_closure:{ label: 'Clôture rejetée', color: 'bg-rose-100 text-rose-800 border-rose-400', kanban: 'À corriger' },
-  approved:        { label: 'Approuvée',       color: 'bg-emerald-100 text-emerald-800 border-emerald-300', kanban: 'Terminée' },
+  approved:        { label: 'Validée',       color: 'bg-emerald-100 text-emerald-800 border-emerald-300', kanban: 'Terminée' },
   cancelled:       { label: 'Annulée',         color: 'bg-stone-100 text-stone-600 border-stone-300', kanban: 'Annulée' },
 };
 
@@ -28,7 +28,7 @@ export const PRIORITY_CONFIG: Record<TaskPriority, { color: string; border: stri
   P1: { color: 'bg-red-600 text-white',     border: 'border-red-600',    label: 'P1 — Critique DG' },
   P2: { color: 'bg-orange-500 text-white',  border: 'border-orange-500', label: 'P2 — Business' },
   P3: { color: 'bg-blue-500 text-white',    border: 'border-blue-500',   label: 'P3 — Important' },
-  P4: { color: 'bg-stone-400 text-white',   border: 'border-stone-400',  label: 'P4 — Low' },
+  P4: { color: 'bg-yellow-500 text-white',   border: 'border-yellow-500',  label: 'P4 — Low' },
 };
 
 export const COMPLEXITY_CONFIG: Record<TaskComplexity, { coef: number; label: string }> = {
@@ -40,7 +40,7 @@ export const COMPLEXITY_CONFIG: Record<TaskComplexity, { coef: number; label: st
 
 export const KANBAN_COLUMNS: TaskStatus[] = [
   'assigned', 'negotiation', 'accepted', 'active',
-  'pending', 'on_hold', 'blocked', 'closed_by_owner', 'approved'
+  'on_hold', 'blocked', 'closed_by_owner', 'approved'
 ];
 
 // ===========================================================
@@ -87,7 +87,7 @@ export function getInitials(fullName: string): string {
 export function roleLabel(role: string): string {
   const map: Record<string, string> = {
     general_manager: 'Direction Générale',
-    admin: 'Administrateur',
+    admin: 'Scrum Master',
     head_of_department: 'Chef de Département',//entity
     manager: 'Manager',
     collaborator: 'Collaborateur',

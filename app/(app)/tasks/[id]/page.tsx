@@ -1,6 +1,7 @@
 import { notFound, redirect } from 'next/navigation';
 import { ArrowLeft, Calendar, User, Building2, Briefcase, AlertTriangle, Sparkles, CheckSquare, Users as UsersIcon, Lock } from 'lucide-react';
 import { createClient, getCurrentProfile } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
 import Header from '@/components/Header';
 import { PriorityBadge, StatusBadge, Avatar } from '@/components/Badges';
 import TaskActions from '@/components/TaskActions';
@@ -97,14 +98,25 @@ export default async function TaskDetailPage({ params }: { params: { id: string 
 
   const { data: users } = await supabase.from('profiles').select('*').eq('is_active', true);
 
-  // Sous-tâches
-  const { data: subtasks } = await supabase
+  // Sous-tâches — admin client pour éviter tout blocage RLS
+  // (l'autorisation est déjà vérifiée ci-dessus via isAuthorized)
+  const admin = createAdminClient();
+  const { data: subtasks } = await admin
     .from('task_subtasks')
-    .select(`*,
-      owner:profiles!task_subtasks_owner_id_fkey(id, full_name, job_title),
-      creator:profiles!task_subtasks_created_by_fkey(id, full_name)`)
+    .select('*')
     .eq('parent_task_id', task.id)
     .order('position', { ascending: true });
+
+  // Enrichir avec le profil owner
+  const ownerIds = [...new Set((subtasks || []).map((s: any) => s.owner_id).filter(Boolean))];
+  const { data: ownerProfiles } = ownerIds.length
+    ? await admin.from('profiles').select('id, full_name, job_title').in('id', ownerIds)
+    : { data: [] };
+  const ownerMap = Object.fromEntries((ownerProfiles || []).map((p: any) => [p.id, p]));
+  const subtasksWithOwner = (subtasks || []).map((s: any) => ({
+    ...s,
+    owner: ownerMap[s.owner_id] ?? null,
+  }));
 
   const dod = (task.definition_of_done as any[]) || [];
   const days = daysFromNow(task.accepted_deadline || task.proposed_deadline);
@@ -149,7 +161,7 @@ export default async function TaskDetailPage({ params }: { params: { id: string 
           {/* Sous-tâches */}
           <SubtaskList
             parentTask={task as any}
-            subtasks={(subtasks || []) as any}
+            subtasks={subtasksWithOwner as any}
             users={(users || []) as any}
             currentProfile={profile as any}
             canCreate={canCreateSubtask}
@@ -186,7 +198,7 @@ export default async function TaskDetailPage({ params }: { params: { id: string 
               <div className="space-y-2">
                 {history.map(h => (
                   <div key={h.id} className="text-sm py-2 border-l-2 border-stone-200 pl-3">
-                    <div className="flex items-center gap-3">
+                    <div className="flex flex-wrap items-center gap-2">
                       <span className="font-medium">{(h as any).changed_by_profile?.full_name || 'Système'}</span>
                       <span className="text-stone-600">a passé le statut de</span>
                       <span className="text-xs px-1.5 py-0.5 bg-stone-100 rounded">{h.from_status || 'créé'}</span>

@@ -12,7 +12,7 @@ export type TaskComplexity = 'simple' | 'medium' | 'complex' | 'strategic';
 
 export type TaskStatus =
   | 'draft'|'assigned'|'negotiation'|'accepted'|'active'
-  | 'pending'|'on_hold'|'blocked'
+  | 'on_hold'|'blocked'
   | 'closed_by_owner'|'rejected_closure'|'approved'|'cancelled';
 
 export type MilestoneStatus = 'pending' | 'in_progress' | 'done' | 'overdue' | 'cancelled';
@@ -136,6 +136,7 @@ export interface Subtask {
   cancelled_at: string | null;
   rejection_reason: string | null;
   completed_at: string | null;
+  depends_on_subtask_id: string | null;
   position: number;
   created_at: string;
   updated_at: string;

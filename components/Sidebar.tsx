@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
+import { useEffect } from 'react';
 import {
   LayoutDashboard, KanbanSquare, ClipboardList, Send, Activity,
   TrendingUp, Sparkles, Settings, LogOut, GanttChartSquare, Inbox,
@@ -9,6 +10,7 @@ import {
 import { Avatar } from './Badges';
 import { roleLabel } from '@/lib/utils';
 import { createClient } from '@/lib/supabase/client';
+import { useSidebar } from './SidebarContext';
 import type { Profile } from '@/types/database';
 
 export type SidebarCounts = {
@@ -29,6 +31,11 @@ export default function Sidebar({ profile, counts = defaultCounts }: { profile: 
   const pathname = usePathname();
   const router = useRouter();
   const supabase = createClient();
+  const { isOpen, close } = useSidebar();
+
+  // Auto-close drawer on navigation
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { close(); }, [pathname]);
 
   const isActive = (href: string) =>
     pathname === href || pathname.startsWith(href + '/');
@@ -51,7 +58,20 @@ export default function Sidebar({ profile, counts = defaultCounts }: { profile: 
 
 
   return (
-    <aside className="w-64 flex flex-col h-screen sticky top-0 shrink-0" style={{ background: 'var(--sidebar-bg)' }}>
+    <>
+      {/* Mobile backdrop */}
+      <div
+        className={`fixed inset-0 z-30 bg-black/60 transition-opacity duration-300 md:hidden ${
+          isOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
+        }`}
+        onClick={close}
+      />
+      <aside
+        className={`w-64 flex flex-col h-screen fixed inset-y-0 left-0 z-40 shrink-0 transition-transform duration-300 ease-in-out md:sticky md:top-0 md:translate-x-0 ${
+          isOpen ? 'translate-x-0' : '-translate-x-full'
+        }`}
+        style={{ background: 'var(--sidebar-bg)' }}
+      >
       {/* Logo */}
       <div className="px-5 py-5" style={{ borderBottom: '1px solid var(--sidebar-border)' }}>
         <div className="flex items-center gap-3">
@@ -143,6 +163,7 @@ export default function Sidebar({ profile, counts = defaultCounts }: { profile: 
           </button>
         </div>
       </div>
-    </aside>
+      </aside>
+    </>
   );
 }

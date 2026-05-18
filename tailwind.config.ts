@@ -5,6 +5,13 @@ const config: Config = {
     './app/**/*.{js,ts,jsx,tsx,mdx}',
     './components/**/*.{js,ts,jsx,tsx,mdx}',
   ],
+  safelist: [
+    // Priority colors (PRIORITY_CONFIG)
+    'bg-red-600', 'text-white', 'border-red-600',
+    'bg-orange-500', 'border-orange-500',
+    'bg-blue-500', 'border-blue-500',
+    'bg-yellow-500', 'border-yellow-500',
+  ],
   theme: {
     extend: {
       fontFamily: {

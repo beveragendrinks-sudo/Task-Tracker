@@ -42,7 +42,7 @@ export default async function GivenTasksPage({
 
       <div className="p-4 md:p-8 space-y-4 md:space-y-6">
         <EntityFilter entities={entitiesList} currentEntityId={entityId} />
-        <div className="grid grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
           <Stat icon={Send} label="Total données" value={tasksList.length} />
           <Stat icon={Clock} label="Non acceptées" value={tasksList.filter(t => t.status === 'assigned').length} />
           <Stat icon={Ban} label="Bloquées" value={tasksList.filter(t => t.status === 'blocked').length} />

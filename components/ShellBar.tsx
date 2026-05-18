@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { Avatar } from './Badges';
-import { ROLE_LABELS } from '@/lib/utils';
+import { roleLabel } from '@/lib/utils';
 
 export default function ShellBar({ profile }: { profile: any }) {
   const router = useRouter();
@@ -68,7 +68,7 @@ export default function ShellBar({ profile }: { profile: any }) {
                 <div className="p-3 border-b border-sap-border">
                   <div className="font-medium text-sm">{profile.full_name}</div>
                   <div className="text-xs text-sap-text-secondary">{profile.email}</div>
-                  <div className="text-xs text-sap-text-secondary mt-1">{ROLE_LABELS[profile.role] || profile.role}</div>
+                  <div className="text-xs text-sap-text-secondary mt-1">{roleLabel(profile.role)}</div>
                 </div>
                 <button onClick={signOut} className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-sap-bg">
                   <LogOut className="h-4 w-4" /> Déconnexion

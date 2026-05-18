@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { canTransitionSubtask } from '@/lib/subtask-workflow';
 
 export async function POST(request: Request, { params }: { params: { id: string } }) {
@@ -15,7 +16,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
 
   const { data: subtask } = await supabase
     .from('task_subtasks')
-    .select('id, status, owner_id, created_by, parent_task_id')
+    .select('id, status, owner_id, created_by, parent_task_id, depends_on_subtask_id')
     .eq('id', params.id)
     .single();
   if (!subtask) return NextResponse.json({ error: 'Subtask not found' }, { status: 404 });
@@ -26,6 +27,21 @@ export async function POST(request: Request, { params }: { params: { id: string 
     .eq('id', subtask.parent_task_id)
     .single();
   if (!parent) return NextResponse.json({ error: 'Parent task not found' }, { status: 404 });
+
+  // Block start if dependency not complete
+  if (to_status === 'active' && subtask.depends_on_subtask_id) {
+    const adminClient = createAdminClient();
+    const { data: dep } = await adminClient
+      .from('task_subtasks')
+      .select('id, status, title')
+      .eq('id', subtask.depends_on_subtask_id)
+      .single();
+    if (dep && !['approved', 'closed_by_owner'].includes(dep.status)) {
+      return NextResponse.json({
+        error: `Impossible de démarrer : la sous-tâche « ${dep.title} » n'est pas encore terminée.`
+      }, { status: 400 });
+    }
+  }
 
   const check = canTransitionSubtask(
     {

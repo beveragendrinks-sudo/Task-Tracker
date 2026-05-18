@@ -31,14 +31,10 @@ export const TRANSITIONS: Transition[] = [
   { from: 'accepted', to: 'cancelled', allowedRoles: ['creator', 'dg', 'admin'], label: 'Annuler' },
 
   // Active → ...
-  { from: 'active', to: 'pending', allowedRoles: ['owner'], label: 'En attente', requiresReason: true },
   { from: 'active', to: 'on_hold', allowedRoles: ['owner', 'dg', 'admin'], label: 'Mettre en pause', requiresReason: true },
   { from: 'active', to: 'blocked', allowedRoles: ['owner'], label: 'Déclarer blocage', requiresReason: true },
   { from: 'active', to: 'closed_by_owner', allowedRoles: ['owner'], label: 'Marquer terminée', requiresDoD: true },
 
-  // Pending → Active / Blocked
-  { from: 'pending', to: 'active', allowedRoles: ['owner'], label: 'Reprendre' },
-  { from: 'pending', to: 'blocked', allowedRoles: ['owner'], label: 'Déclarer blocage', requiresReason: true },
 
   // On Hold → Active
   { from: 'on_hold', to: 'active', allowedRoles: ['owner', 'creator', 'dg', 'admin'], label: 'Reprendre' },
