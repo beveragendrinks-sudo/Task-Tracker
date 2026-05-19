@@ -134,7 +134,9 @@ export default function SubtaskList({ parentTask, subtasks, users, currentProfil
                   ) : (
                     <button
                       onClick={() => openDepEdit(s)}
-                      className="flex items-center gap-1 text-[11px] text-slate-400 hover:text-amber-600 transition-colors">
+                      className="flex items-center gap-1 text-[11px] text-amber-600 hover:text-amber-800 font-semibold transition-colors"
+                      title="Ajouter une dépendance"
+                    >
                       <Link2 className="h-3 w-3" />
                       {dep
                         ? <span>Dépend de : <span className="font-medium">{dep.title}</span> <Pencil className="inline h-2.5 w-2.5" /></span>

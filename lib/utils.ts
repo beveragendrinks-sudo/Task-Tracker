@@ -88,7 +88,7 @@ export function roleLabel(role: string): string {
   const map: Record<string, string> = {
     general_manager: 'Direction Générale',
     admin: 'Scrum Master',
-    head_of_department: 'Chef de Département',//entity
+    head_of_department: 'Chef d\'Entité',
     manager: 'Manager',
     collaborator: 'Collaborateur',
   };

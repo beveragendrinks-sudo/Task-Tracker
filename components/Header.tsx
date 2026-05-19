@@ -27,7 +27,7 @@ export default function Header({ title, subtitle }: { title: string; subtitle?: 
         </div>
 
         <div className="flex items-center gap-2 shrink-0">
-          {/* Search — desktop only */}
+          {/* Search — desktop only
           <div className="relative hidden md:block">
             <Search className="h-3.5 w-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
             <input
@@ -37,13 +37,13 @@ export default function Header({ title, subtitle }: { title: string; subtitle?: 
                          focus:bg-white focus:border-amber-400 focus:ring-2 focus:ring-amber-400/20 focus:outline-none
                          placeholder:text-slate-400 transition-all duration-150"
             />
-          </div>
+          </div>  */}
 
-          {/* Notifications */}
+          {/* Notifications
           <button className="relative p-2 rounded-lg text-slate-500 hover:text-slate-700 hover:bg-slate-100 transition-colors">
             <Bell className="h-5 w-5" />
             <span className="absolute top-1.5 right-1.5 h-2 w-2 bg-amber-500 rounded-full ring-2 ring-white" />
-          </button>
+          </button> */}
 
           {/* New task */}
           <Link
