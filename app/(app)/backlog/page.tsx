@@ -1,12 +1,12 @@
 import Link from 'next/link';
-import { Calendar, MessageSquare, Paperclip, Sparkles, Ban, PauseCircle } from 'lucide-react';
+import { Calendar, MessageSquare, Paperclip, Sparkles, Ban } from 'lucide-react';
 import { createClient } from '@/lib/supabase/server';
 import Header from '@/components/Header';
 import { PriorityBadge, Avatar } from '@/components/Badges';
 import EntityFilter from '@/components/EntityFilter';
-import { KANBAN_COLUMNS, STATUS_CONFIG, formatDateShort, isOverdue } from '@/lib/utils';
+import { BACKLOG_COLUMNS, STATUS_CONFIG, formatDateShort, isOverdue } from '@/lib/utils';
 
-export default async function KanbanPage({
+export default async function BacklogPage({
   searchParams,
 }: {
   searchParams: { entity_id?: string };
@@ -41,17 +41,13 @@ export default async function KanbanPage({
           <EntityFilter entities={entitiesList} currentEntityId={entityId} />
         </div>
         <div className="flex gap-3 md:gap-4 overflow-x-auto pb-4 -mx-4 md:mx-0 px-4 md:px-0 snap-x snap-mandatory">
-          {KANBAN_COLUMNS.map(status => {
-            const isMergedCol = status === 'on_hold';
-            const colTasks = isMergedCol
-              ? tasksList.filter(t => t.status === 'on_hold' || t.status === 'blocked')
-              : tasksList.filter(t => t.status === status);
-            const colLabel = isMergedCol ? 'En pause / Bloquée' : STATUS_CONFIG[status].kanban;
+          {BACKLOG_COLUMNS.map(status => {
+            const colTasks = tasksList.filter(t => t.status === status);
             return (
               <div key={status} className="bg-stone-100 rounded-xl p-3 min-w-[calc(85vw)] sm:min-w-[280px] w-[calc(85vw)] sm:w-[280px] shrink-0 snap-start">
                 <div className="flex items-center justify-between mb-3 px-1">
                   <span className="font-serif text-sm font-medium text-stone-800">
-                    {colLabel}
+                    {STATUS_CONFIG[status].kanban}
                   </span>
                   <span className="text-xs px-1.5 py-0.5 bg-stone-200 text-stone-700 rounded-full font-medium">
                     {colTasks.length}
@@ -81,8 +77,7 @@ export default async function KanbanPage({
                             {t.ai_risk_score && t.ai_risk_score > 0.6 && (
                               <Sparkles className="h-3 w-3 text-amber-600" />
                             )}
-                            {t.status === 'blocked' && <Ban className="h-3 w-3 text-red-600"  />}
-                            {t.status === 'on_hold' && <PauseCircle className="h-3 w-3 text-purple-600" />}
+                            {t.status === 'blocked' && <Ban className="h-3 w-3 text-red-600" />}
                           </div>
                           <div className="text-[10px] text-stone-400 font-mono">{t.reference}</div>
                         </div>

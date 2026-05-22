@@ -1,9 +1,10 @@
 import {
-  ClipboardList, Flag, AlertTriangle, Ban, Clock, FileCheck2,
+  ClipboardList, Flag, AlertTriangle, Ban, Clock,  Calendar, FileCheck, FileCheck2, Sparkles, PauseCircle,
   Activity, Users, ChevronRight, Bell
 } from 'lucide-react';
 import Link from 'next/link';
 import { createClient, getCurrentProfile } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
 import Header from '@/components/Header';
 import Stat from '@/components/Stat';
 import { PriorityBadge, StatusBadge, Avatar } from '@/components/Badges';
@@ -11,18 +12,40 @@ import { formatDateShort, isOverdue } from '@/lib/utils';
 
 export default async function DashboardPage() {
   const supabase = createClient();
+  const supabaseAdmin = createAdminClient();
   const profile = await getCurrentProfile();
 
-  // Récupération des tâches accessibles (filtrées par RLS)
-  const { data: tasks } = await supabase
+  // Chef d'entité : limité à son entité pour le workload
+  const isHead = profile?.role === 'head_of_department';
+  const headEntityId = isHead ? profile?.entity_id : null;
+
+  // Requêtes admin pour le workload — identiques à WorkloadPage
+  let wlTasksQuery = supabaseAdmin
     .from('tasks')
-    .select(`
-      *,
-      entity:entities!tasks_entity_id_fkey(name),
-      owner:profiles!tasks_owner_id_fkey(id, full_name),
-      department:departments!tasks_primary_department_id_fkey(name)
-    `)
-    .order('created_at', { ascending: false });
+    .select('owner_id, accepted_workload_percent, proposed_workload_percent')
+    .not('status', 'in', '("approved","cancelled")')
+    .not('owner_id', 'is', null);
+  if (headEntityId) wlTasksQuery = wlTasksQuery.eq('entity_id', headEntityId);
+
+  let wlProfilesQuery = supabaseAdmin
+    .from('profiles')
+    .select('id')
+    .eq('is_active', true);
+  if (headEntityId) wlProfilesQuery = wlProfilesQuery.eq('entity_id', headEntityId);
+
+  const [{ data: tasks }, { data: wlTasks }, { data: wlProfiles }] = await Promise.all([
+    supabase
+      .from('tasks')
+      .select(`
+        *,
+        entity:entities!tasks_entity_id_fkey(name),
+        owner:profiles!tasks_owner_id_fkey(id, full_name),
+        department:departments!tasks_primary_department_id_fkey(name)
+      `)
+      .order('created_at', { ascending: false }),
+    wlTasksQuery,
+    wlProfilesQuery,
+  ]);
 
   // Tasks assigned to current user waiting for acceptance
   // Derived from tasksList to avoid a separate query + potential RLS edge cases
@@ -33,6 +56,11 @@ export default async function DashboardPage() {
 
   // KPIs
   const open = tasksList.filter(t => !['approved', 'cancelled'].includes(t.status));
+  const active = tasksList.filter(t => ['active'].includes(t.status));
+  const accepted = tasksList.filter(t => ['accepted'].includes(t.status));
+  const backlog = tasksList.filter(t => ['assigned', 'negotiation', 'accepted'].includes(t.status));
+  const kanban = tasksList.filter(t => ['active', 'on_hold', 'blocked', 'closed_by_owner', 'approved'].includes(t.status));
+  const negotiation = tasksList.filter(t => ['negotiation'].includes(t.status));
   const p1Open = open.filter(t => t.priority === 'P1');
   const p1Late = p1Open.filter(t =>
     t.accepted_deadline && isOverdue(t.accepted_deadline) &&
@@ -49,6 +77,32 @@ export default async function DashboardPage() {
   const criticalTasks = [...p1Late, ...blocked.filter(t => t.priority === 'P1')]
     .filter((t, i, arr) => arr.findIndex(x => x.id === t.id) === i)
     .slice(0, 5);
+
+  // Calcul de la charge — même logique exacte que WorkloadPage (données admin)
+  const workloadByUser: Record<string, number> = {};
+  const taskCountByUser: Record<string, number> = {};
+  (wlTasks || []).forEach(t => {
+    if (!t.owner_id) return;
+    const wl = Number(t.accepted_workload_percent ?? t.proposed_workload_percent ?? 0);
+    workloadByUser[t.owner_id] = (workloadByUser[t.owner_id] || 0) + wl;
+    taskCountByUser[t.owner_id] = (taskCountByUser[t.owner_id] || 0) + 1;
+  });
+  // Filtrer les owners via les profils actifs — identique à WorkloadPage
+  const activeProfileIds = new Set((wlProfiles || []).map(u => u.id));
+  const usersWithTasks = [...new Set(
+    (wlTasks || [])
+      .filter(t => t.owner_id && activeProfileIds.has(t.owner_id))
+      .map(t => t.owner_id as string)
+  )];
+  const avgWl = usersWithTasks.length
+    ? Math.round(usersWithTasks.reduce((s, uid) => s + (workloadByUser[uid] || 0), 0) / usersWithTasks.length)
+    : 0;
+  // Pour les collaborateurs : leur propre charge (pas une moyenne)
+  const isCollaborator = profile?.role && ['collaborator', 'manager'].includes(profile.role);
+  const myWorkload = profile ? Math.round(workloadByUser[profile.id] || 0) : 0;
+  const wlValue = isCollaborator ? myWorkload : avgWl;
+  const wlLabel = isCollaborator ? 'Ma charge' : 'Charge moyenne';
+  const wlSub = isCollaborator ? 'Mon workload actuel' : `${usersWithTasks.length} collaborateurs actifs`;
 
   return (
     <>
@@ -83,16 +137,25 @@ export default async function DashboardPage() {
         )}
         {/* KPI grid */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <Stat icon={ClipboardList} label="Tâches ouvertes" value={open.length} sub={`${tasksList.length} au total`} />
-          <Stat icon={Flag} label="P1 critiques" value={p1Open.length} accent={p1Open.length > 0 ? 'text-red-700' : ''} />
-          <Stat icon={AlertTriangle} label="Tâches en retard" value={pLate.length}
-                accent={pLate.length > 0 ? 'text-red-700' : ''} sub="Action requise" />
-          <Stat icon={Ban} label="Tâches bloquées" value={blocked.length}
-                accent={blocked.length > 0 ? 'text-orange-700' : ''} />
-          <Stat icon={Clock} label="Non acceptées" value={notAccepted.length} sub="Délai > 48h" />
-          <Stat icon={FileCheck2} label="À Valider" value={awaitingApproval.length} sub="Action créateurs" />
-          <Stat icon={Activity} label="En cours" value={open.filter(t => t.status === 'active').length} />
+          <Stat icon={ClipboardList} label="Tâches Backlog" value={backlog.length}  />
+          <Stat 
+            icon={Calendar} 
+            label="À accepter" 
+            value={open.filter(t => t.status === 'assigned').length} 
+          />
           <Stat icon={Users} label="En négociation" value={open.filter(t => t.status === 'negotiation').length} />
+          <Stat icon={FileCheck} label="Tâches Acceptées / À Démarrer" value={accepted.length} />
+          <Stat icon={Sparkles} label="Tâches Kanban" value={kanban.length} sub={`${active.length} En cours`}/>
+          <Stat icon={AlertTriangle} label="Tâches en retard" value={pLate.length} 
+                accent={pLate.length > 0 ? 'text-red-700' : ''} sub="Action requise" />
+          <Stat icon={FileCheck2} label="Résultats à Valider" value={awaitingApproval.length} sub="Action créateurs" />
+      
+          <Stat
+            icon={Activity}
+            label={wlLabel}
+            value={`${wlValue}%`}
+            sub={wlSub}
+          />
         </div>
 
         {/* Tâches critiques */}

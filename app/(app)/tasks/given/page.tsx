@@ -48,7 +48,7 @@ export default async function GivenTasksPage({
           <Stat icon={Ban} label="Bloquées" value={tasksList.filter(t => t.status === 'blocked').length} />
           <Stat
             icon={FileCheck2}
-            label="À approuver"
+            label="Résultats à valider"
             value={tasksList.filter(t => t.status === 'closed_by_owner').length}
             accent={tasksList.filter(t => t.status === 'closed_by_owner').length > 0 ? 'text-amber-700' : ''}
           />

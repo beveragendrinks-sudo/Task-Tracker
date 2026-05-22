@@ -18,7 +18,7 @@ export const STATUS_CONFIG: Record<TaskStatus, { label: string; color: string; k
   //pending:         { label: 'En attente',      color: 'bg-yellow-100 text-yellow-800 border-yellow-300', kanban: 'En attente' },
   on_hold:         { label: 'En pause',        color: 'bg-purple-100 text-purple-800 border-purple-300', kanban: 'En pause' },
   blocked:         { label: 'Bloquée',         color: 'bg-red-100 text-red-800 border-red-400', kanban: 'Bloquée' },
-  closed_by_owner: { label: 'Fermée Owner',    color: 'bg-teal-100 text-teal-800 border-teal-300', kanban: 'À Valider' },
+  closed_by_owner: { label: 'Fermée Owner',    color: 'bg-teal-100 text-teal-800 border-teal-300', kanban: 'Résultats à Valider' },
   rejected_closure:{ label: 'Clôture rejetée', color: 'bg-rose-100 text-rose-800 border-rose-400', kanban: 'À corriger' },
   approved:        { label: 'Validée',       color: 'bg-emerald-100 text-emerald-800 border-emerald-300', kanban: 'Terminée' },
   cancelled:       { label: 'Annulée',         color: 'bg-stone-100 text-stone-600 border-stone-300', kanban: 'Annulée' },
@@ -38,9 +38,17 @@ export const COMPLEXITY_CONFIG: Record<TaskComplexity, { coef: number; label: st
   strategic: { coef: 5, label: 'Stratégique' },
 };
 
-export const KANBAN_COLUMNS: TaskStatus[] = [
+export const KANBAN_COLUMNS_ORG: TaskStatus[] = [
   'assigned', 'negotiation', 'accepted', 'active',
   'on_hold', 'blocked', 'closed_by_owner', 'approved'
+];
+
+export const KANBAN_COLUMNS: TaskStatus[] = [
+  'active', 'on_hold', 'closed_by_owner', 'approved'
+];
+
+export const BACKLOG_COLUMNS: TaskStatus[] = [
+  'assigned', 'negotiation', 'accepted'
 ];
 
 // ===========================================================

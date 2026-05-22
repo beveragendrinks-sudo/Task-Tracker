@@ -8,7 +8,7 @@ import { roleLabel } from '@/lib/utils';
 const ROLES = [
   { value: 'general_manager',   label: 'Direction Générale' },
   { value: 'admin',             label: 'Administrateur' },
-  { value: 'head_of_department',label: 'Chef de Département' },
+  { value: 'head_of_department',label: 'Chef d\'Entité' },
   { value: 'manager',           label: 'Manager' },
   { value: 'collaborator',        label: 'Collaborateur' },
 ];

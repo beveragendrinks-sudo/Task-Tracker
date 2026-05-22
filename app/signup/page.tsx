@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { GanttChartSquare, AlertCircle, ArrowLeft } from 'lucide-react';
+import { GanttChartSquare, AlertCircle, ArrowLeft, Eye, EyeOff } from 'lucide-react';
 
 export default function SignUpPage() {
   const [fullName, setFullName] = useState('');
@@ -14,6 +14,7 @@ export default function SignUpPage() {
   const [success, setSuccess] = useState(false);
   const [loading, setLoading] = useState(false);
   const router = useRouter();
+  const [showPassword, setShowPassword] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -91,7 +92,7 @@ export default function SignUpPage() {
               <GanttChartSquare className="h-8 w-8 text-stone-900" />
             </div>
           </div>
-          <h1 className="font-serif text-4xl text-stone-100">Task Engine</h1>
+          <h1 className="font-serif text-4xl text-stone-100">Task Tracker</h1>
           <p className="text-amber-400 text-sm uppercase tracking-[0.3em] mt-2">Group Operating System</p>
         </div>
 
@@ -139,14 +140,23 @@ export default function SignUpPage() {
               <label className="block text-xs font-medium text-stone-700 mb-1 uppercase tracking-wider">
                 Mot de passe
               </label>
-              <input
-                type="password"
-                required
-                value={password}
-                onChange={e => setPassword(e.target.value)}
-                placeholder="Minimum 6 caractères"
-                className="w-full border border-stone-300 rounded-lg px-3 py-2.5 focus:border-amber-700 focus:ring-1 focus:ring-amber-700 focus:outline-none"
-              />
+              <div className="relative">
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  required
+                  value={password}
+                  onChange={e => setPassword(e.target.value)}
+                  placeholder="Minimum 6 caractères"
+                  className="w-full border border-stone-300 rounded-lg px-3 py-2.5 pr-10 focus:border-amber-700 focus:ring-1 focus:ring-amber-700 focus:outline-none"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-stone-400 hover:text-stone-600"
+                >
+                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
             </div>
 
             <div>

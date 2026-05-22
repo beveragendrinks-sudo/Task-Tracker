@@ -22,20 +22,28 @@ export default function SubtaskList({ parentTask, subtasks, users, currentProfil
   const [editingDep, setEditingDep] = useState<string | null>(null); // subtask id being edited
   const [depValue, setDepValue]     = useState<string>('');          // selected depends_on id
   const [depLoading, setDepLoading] = useState(false);
+  const [depError, setDepError]     = useState<string | null>(null);
 
   const openDepEdit = (s: SubtaskWithRelations) => {
     setDepValue(s.depends_on_subtask_id ?? '');
+    setDepError(null);
     setEditingDep(s.id);
   };
 
   const saveDep = async (subtaskId: string) => {
     setDepLoading(true);
-    await fetch(`/api/subtasks/${subtaskId}`, {
+    setDepError(null);
+    const res = await fetch(`/api/subtasks/${subtaskId}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ depends_on_subtask_id: depValue || null }),
     });
     setDepLoading(false);
+    if (!res.ok) {
+      const json = await res.json().catch(() => ({}));
+      setDepError(json.error || 'Erreur lors de la sauvegarde de la dépendance');
+      return;
+    }
     setEditingDep(null);
     router.refresh();
   };
@@ -109,27 +117,32 @@ export default function SubtaskList({ parentTask, subtasks, users, currentProfil
               {canCreate && (
                 <div className="pl-2">
                   {editingDep === s.id ? (
-                    <div className="flex items-center gap-1.5">
-                      <select
-                        value={depValue}
-                        onChange={e => setDepValue(e.target.value)}
-                        className="flex-1 text-xs border border-slate-200 rounded-lg px-2 py-1 bg-white focus:outline-none focus:ring-1 focus:ring-amber-400">
-                        <option value="">— Aucune dépendance —</option>
-                        {siblings.map(o => (
-                          <option key={o.id} value={o.id}>{o.title}</option>
-                        ))}
-                      </select>
-                      <button
-                        onClick={() => saveDep(s.id)}
-                        disabled={depLoading}
-                        className="p-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white disabled:opacity-50">
-                        {depLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
-                      </button>
-                      <button
-                        onClick={() => setEditingDep(null)}
-                        className="p-1 rounded-lg hover:bg-slate-100 text-slate-400">
-                        <X className="h-3.5 w-3.5" />
-                      </button>
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-1.5">
+                        <select
+                          value={depValue}
+                          onChange={e => { setDepValue(e.target.value); setDepError(null); }}
+                          className="flex-1 text-xs border border-slate-200 rounded-lg px-2 py-1 bg-white focus:outline-none focus:ring-1 focus:ring-amber-400">
+                          <option value="">— Aucune dépendance —</option>
+                          {siblings.map(o => (
+                            <option key={o.id} value={o.id}>{o.title}</option>
+                          ))}
+                        </select>
+                        <button
+                          onClick={() => saveDep(s.id)}
+                          disabled={depLoading}
+                          className="p-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white disabled:opacity-50">
+                          {depLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
+                        </button>
+                        <button
+                          onClick={() => { setEditingDep(null); setDepError(null); }}
+                          className="p-1 rounded-lg hover:bg-slate-100 text-slate-400">
+                          <X className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                      {depError && (
+                        <p className="text-[11px] text-red-600 bg-red-50 border border-red-200 rounded px-2 py-1">{depError}</p>
+                      )}
                     </div>
                   ) : (
                     <button

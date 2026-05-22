@@ -48,10 +48,11 @@ export default function Sidebar({ profile, counts = defaultCounts }: { profile: 
 
   const navItems = [
     { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+    { href: '/backlog', label: 'Backlog Board', icon: LayoutDashboard },
     { href: '/kanban', label: 'Kanban Board', icon: KanbanSquare },
     { href: '/tasks/mine', label: 'Mes tâches', icon: ClipboardList, badge: counts.mine },
     { href: '/tasks/given', label: 'Tâches données', icon: Send, badge: counts.given },
-    { href: '/workload', label: 'Workload', icon: Activity, roles: ['admin', 'general_manager'] },
+    { href: '/workload', label: 'Workload', icon: Activity, roles: ['admin', 'general_manager', 'head_of_department'] },
     { href: '/alerts', label: 'Alertes IA', icon: Sparkles, badge: counts.alerts },
     { href: '/emails', label: 'Emails', icon: Inbox, badge: counts.emails },
   ];
@@ -79,7 +80,7 @@ export default function Sidebar({ profile, counts = defaultCounts }: { profile: 
             <GanttChartSquare className="h-5 w-5 text-white" />
           </div>
           <div>
-            <div className="font-serif text-[17px] text-white leading-tight tracking-tight">Task Engine</div>
+            <div className="font-serif text-[17px] text-white leading-tight tracking-tight">Task Tracker</div>
             <div className="text-[9px] uppercase tracking-[0.2em] text-slate-500 mt-0.5">ELKATEB GROUP</div>
           </div>
         </div>

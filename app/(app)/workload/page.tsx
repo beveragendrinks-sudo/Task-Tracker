@@ -12,17 +12,23 @@ export const dynamic = 'force-dynamic';
 export default async function WorkloadPage({ searchParams }: { searchParams: { entity_id?: string } }) {
   const profile = await getCurrentProfile();
   if (!profile) redirect('/login');
-  if (!['admin', 'general_manager'].includes(profile.role)) redirect('/dashboard');
+  const isHead = profile.role === 'head_of_department';
+  if (!['admin', 'general_manager', 'head_of_department'].includes(profile.role)) redirect('/dashboard');
 
   const supabase = createAdminClient();
-  const entityId = searchParams.entity_id ?? null;
+  // Chefs de département : forcé sur leur entité, pas de filtre libre
+  const entityId = isHead ? profile.entity_id : (searchParams.entity_id ?? null);
 
   const [{ data: users }, { data: entities }, { data: activeTasks }] = await Promise.all([
-    supabase
-      .from('profiles')
-      .select('*, department:departments!profiles_department_id_fkey(name)')
-      .eq('is_active', true)
-      .order('full_name'),
+    (() => {
+      let q = supabase
+        .from('profiles')
+        .select('*, department:departments!profiles_department_id_fkey(name)')
+        .eq('is_active', true)
+        .order('full_name');
+      if (entityId) q = q.eq('entity_id', entityId);
+      return q;
+    })(),
     supabase.from('entities').select('id, name').order('name'),
     (() => {
       let q = supabase
@@ -45,15 +51,18 @@ export default async function WorkloadPage({ searchParams }: { searchParams: { e
     taskCountByUser[t.owner_id] = (taskCountByUser[t.owner_id] || 0) + 1;
   });
 
-  // When filtered by entity, only show users who have tasks in that entity
+  // Pour les chefs de département, tous les users de l'entité sont affichés
+  // Pour admin/DG avec filtre entité, seulement ceux qui ont des tâches
   const allUsers = users || [];
-  const usersList = entityId
+  const usersList = (!isHead && entityId)
     ? allUsers.filter(u => (taskCountByUser[u.id] || 0) > 0)
     : allUsers;
   const overloaded  = usersList.filter(u => (workloadByUser[u.id] || 0) > 110);
   const underloaded = usersList.filter(u => (workloadByUser[u.id] || 0) < 70);
-  const avgWl = usersList.length
-    ? Math.round(usersList.reduce((s, u) => s + (workloadByUser[u.id] || 0), 0) / usersList.length)
+  // Moyenne uniquement sur les utilisateurs ayant au moins 1 tâche active (cohérent avec dashboard)
+  const usersWithTasks = usersList.filter(u => (taskCountByUser[u.id] || 0) > 0);
+  const avgWl = usersWithTasks.length
+    ? Math.round(usersWithTasks.reduce((s, u) => s + (workloadByUser[u.id] || 0), 0) / usersWithTasks.length)
     : 0;
 
   return (
@@ -61,10 +70,12 @@ export default async function WorkloadPage({ searchParams }: { searchParams: { e
       <Header title="Charge de travail" subtitle="Workload temps réel — vue groupe" />
 
       <div className="page-content">
-        {/* Filtre entité */}
-        <div className="flex items-center justify-between">
-          <EntityFilter entities={entities || []} currentEntityId={entityId} />
-        </div>
+        {/* Filtre entité — masqué pour les chefs de département (vue fixe sur leur entité) */}
+        {!isHead && (
+          <div className="flex items-center justify-between">
+            <EntityFilter entities={entities || []} currentEntityId={entityId} />
+          </div>
+        )}
         {/* KPIs */}
         <div className="grid grid-cols-3 gap-4">
           <div className="card p-5">
@@ -82,7 +93,7 @@ export default async function WorkloadPage({ searchParams }: { searchParams: { e
             <div className={`mt-2 text-3xl font-serif font-light ${avgWl > 110 ? 'text-red-600' : avgWl < 70 ? 'text-amber-600' : 'text-emerald-600'}`}>
               {avgWl}%
             </div>
-            <div className="mt-1 text-xs text-slate-400">{usersList.length} collaborateurs actifs</div>
+            <div className="mt-1 text-xs text-slate-400">{usersWithTasks.length} collaborateurs actifs</div>
           </div>
         </div>
 
