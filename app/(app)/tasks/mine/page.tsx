@@ -17,24 +17,52 @@ export default async function MyTasksPage({
   const entityId = searchParams.entity_id ?? null;
   const supabase = createClient();
 
-  let query = supabase
+  const TASK_SELECT = `
+    *,
+    entity:entities!tasks_entity_id_fkey(name),
+    owner:profiles!tasks_owner_id_fkey(id, full_name),
+    subtasks:task_subtasks(id, title, status, priority, due_date, workload_percent, owner:profiles!task_subtasks_owner_id_fkey(id, full_name))
+  `;
+
+  let mainQuery = supabase
     .from('tasks')
-    .select(`
-      *,
-      entity:entities!tasks_entity_id_fkey(name),
-      owner:profiles!tasks_owner_id_fkey(id, full_name)
-    `)
+    .select(TASK_SELECT)
     .eq('owner_id', profile.id)
     .order('created_at', { ascending: false });
-  if (entityId) query = query.eq('entity_id', entityId);
+  if (entityId) mainQuery = mainQuery.eq('entity_id', entityId);
 
-  const [{ data: tasks, error: tasksError }, { data: entities }] = await Promise.all([
-    query,
+  // Fetch in parallel: my tasks, entities list, and subtasks I'm responsible for
+  const [
+    { data: tasks, error: tasksError },
+    { data: entities },
+    { data: subtaskParents },
+  ] = await Promise.all([
+    mainQuery,
     supabase.from('entities').select('id, name').eq('is_active', true).order('name'),
+    supabase.from('task_subtasks').select('parent_task_id').eq('owner_id', profile.id),
   ]);
 
   if (tasksError) console.error('[MyTasksPage] RLS/query error:', tasksError.message);
-  const tasksList = tasks || [];
+
+  // Tasks where I own a subtask but am not the task owner (parent tasks not yet in list)
+  const myTaskIds = new Set((tasks || []).map((t: any) => t.id));
+  const extraIds = [...new Set(
+    (subtaskParents || []).map((s: any) => s.parent_task_id).filter(Boolean) as string[]
+  )].filter(id => !myTaskIds.has(id));
+
+  let extraTasks: any[] = [];
+  if (extraIds.length > 0) {
+    let extraQuery = supabase
+      .from('tasks')
+      .select(TASK_SELECT)
+      .in('id', extraIds)
+      .order('created_at', { ascending: false });
+    if (entityId) extraQuery = extraQuery.eq('entity_id', entityId);
+    const { data } = await extraQuery;
+    extraTasks = data || [];
+  }
+
+  const tasksList = [...(tasks || []), ...extraTasks];
   const entitiesList = entities || [];
 
   const toAccept = tasksList.filter(t => t.status === 'assigned');

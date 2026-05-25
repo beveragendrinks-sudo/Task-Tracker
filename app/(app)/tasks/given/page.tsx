@@ -21,7 +21,8 @@ export default async function GivenTasksPage({
     .select(`
       *,
       entity:entities!tasks_entity_id_fkey(name),
-      owner:profiles!tasks_owner_id_fkey(id, full_name)
+      owner:profiles!tasks_owner_id_fkey(id, full_name),
+      subtasks:task_subtasks(id, title, status, priority, due_date, workload_percent, owner:profiles!task_subtasks_owner_id_fkey(id, full_name))
     `)
     .eq('created_by', profile.id)
     .order('created_at', { ascending: false });

@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Plus, X, Send, AlertCircle, ChevronDown } from 'lucide-react';
+import { Plus, X, Send, AlertCircle, ListChecks, Trash2 } from 'lucide-react';
 import { Avatar, PriorityBadge } from './Badges';
 import { PRIORITY_CONFIG, COMPLEXITY_CONFIG } from '@/lib/utils';
 import PrivacyToggle from './PrivacyToggle';
@@ -19,16 +19,12 @@ export default function TaskForm({ entities, departments, users, currentProfile 
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  const [contribOpen, setContribOpen] = useState(false);
-
-
   const [form, setForm] = useState({
     title: '',
     description: '',
     entity_id: entities[0]?.id || '',
     primary_department_id: departments[0]?.id || '',
     owner_id: '',
-    contributors: [] as string[],
     authorizedUsers: [] as string[],
     created_by: currentProfile.id,
     priority: 'P3' as TaskPriority,
@@ -38,6 +34,14 @@ export default function TaskForm({ entities, departments, users, currentProfile 
     is_private: false,
     definition_of_done: ['', '', ''],
   });
+
+  interface SubtaskDraft {
+    title: string;
+    owner_id: string;
+    priority: TaskPriority;
+    due_date: string;
+  }
+  const [subtaskDrafts, setSubtaskDrafts] = useState<SubtaskDraft[]>([]);
 
   const SELECTED_BG: Record<TaskPriority, string> = {
     P1: 'bg-red-50',
@@ -72,14 +76,6 @@ export default function TaskForm({ entities, departments, users, currentProfile 
     medium: 'border-amber-700',
     complex: 'border-orange-600',
     strategic: 'border-sky-600',
-  };
-
-  const toggleContrib = (uid: string) => {
-    if (uid === form.owner_id) return;
-    setForm(f => ({
-      ...f,
-      contributors: f.contributors.includes(uid) ? f.contributors.filter(x => x !== uid) : [...f.contributors, uid]
-    }));
   };
 
   const toggleAuthorized = (uid: string) => {
@@ -133,7 +129,6 @@ export default function TaskForm({ entities, departments, users, currentProfile 
         proposed_workload_percent: form.proposed_workload_percent,
         is_private: form.is_private,
         definition_of_done: dod,
-        contributors: form.contributors,
         authorizedUsers: form.is_private ? form.authorizedUsers : [],
       }),
     });
@@ -146,6 +141,30 @@ export default function TaskForm({ entities, departments, users, currentProfile 
     }
 
     const { task } = await res.json();
+
+    // Create subtask drafts in parallel (fire-and-forget errors)
+    if (subtaskDrafts.length > 0) {
+      await Promise.all(
+        subtaskDrafts
+          .filter(s => s.title.trim() && s.owner_id)
+          .map(s =>
+            fetch('/api/subtasks', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                parent_task_id: task.id,
+                title: s.title.trim(),
+                owner_id: s.owner_id,
+                priority: s.priority,
+                due_date: s.due_date || null,
+                workload_percent: null,
+                is_private: form.is_private,
+              }),
+            })
+          )
+      );
+    }
+
     router.push(`/tasks/${task.id}`);
     router.refresh();
   };
@@ -250,45 +269,6 @@ export default function TaskForm({ entities, departments, users, currentProfile 
           ))}
         </select>
       </div>
-      {/* Contributors */}
-        <div>
-          <label className="block text-xs font-medium text-sap-text mb-1">
-            Contributeurs <span className="text-sap-text-secondary font-normal">(optionnel)</span>
-          </label>
-          {form.contributors.length > 0 && (
-            <div className="mb-2 flex flex-wrap gap-1.5">
-              {form.contributors.map(cid => {
-                const u = users.find(x => x.id === cid);
-                return u ? (
-                  <span key={cid} className="inline-flex items-center gap-1.5 bg-sap-info-bg border border-sap-info/30 rounded-sm pl-1 pr-1.5 py-0.5">
-                    <Avatar name={u.full_name} size="xs" />
-                    <span className="text-xs text-sap-text">{u.full_name}</span>
-                    <button type="button" onClick={() => toggleContrib(cid)}><X className="h-3 w-3" /></button>
-                  </span>
-                ) : null;
-              })}
-            </div>
-          )}
-          <button type="button" onClick={() => setContribOpen(!contribOpen)}
-            className="w-full text-left border border-sap-border rounded px-2 py-1.5 text-sm flex items-center justify-between hover:border-sap-text-secondary bg-white">
-            <span className="text-sap-text-secondary">{form.contributors.length === 0 ? 'Ajouter…' : `${form.contributors.length} sélectionné(s)`}</span>
-            <ChevronDown className={`h-4 w-4 text-sap-text-secondary transition-transform ${contribOpen ? 'rotate-180' : ''}`} />
-          </button>
-          {contribOpen && (
-            <div className="mt-1 border border-sap-border rounded max-h-56 overflow-y-auto bg-white shadow-sap-card">
-              {activeUsers.filter(u => u.id !== form.owner_id).map(u => (
-                <label key={u.id} className="flex items-center gap-3 px-3 py-1.5 hover:bg-sap-bg cursor-pointer">
-                  <input type="checkbox" checked={form.contributors.includes(u.id)} onChange={() => toggleContrib(u.id)} className="rounded text-sap-brand" />
-                  <Avatar name={u.full_name} size="xs" />
-                  <div className="flex-1 min-w-0">
-                    <div className="text-sm text-sap-text">{u.full_name}</div>
-                    <div className="text-xs text-sap-text-secondary truncate">{u.job_title}</div>
-                  </div>
-                </label>
-              ))}
-            </div>
-          )}
-        </div>
 
       {/* Priorité */}
       <div>
@@ -422,9 +402,92 @@ export default function TaskForm({ entities, departments, users, currentProfile 
           </button>
         </div>
       </div>
+      {/* Sous-tâches */}
+      <div>
+        <div className="flex items-center justify-between mb-2">
+          <label className="block text-sm font-medium text-stone-700 flex items-center gap-1.5">
+            <ListChecks className="h-4 w-4 text-stone-500" />
+            Sous-tâches <span className="text-stone-400 font-normal">(optionnel)</span>
+          </label>
+          <button
+            type="button"
+            onClick={() => setSubtaskDrafts(d => [...d, { title: '', owner_id: '', priority: 'P3', due_date: '' }])}
+            className="flex items-center gap-1 text-xs text-amber-700 hover:text-amber-900 font-medium"
+          >
+            <Plus className="h-3 w-3" /> Ajouter une sous-tâche
+          </button>
+        </div>
+        {subtaskDrafts.length > 0 && (
+          <div className="space-y-2">
+            {subtaskDrafts.map((s, i) => (
+              <div key={i} className="flex items-center gap-2 bg-stone-50 border border-stone-200 rounded-lg px-3 py-2">
+                <input
+                  type="text"
+                  placeholder="Titre de la sous-tâche"
+                  value={s.title}
+                  onChange={e => {
+                    const next = [...subtaskDrafts];
+                    next[i] = { ...next[i], title: e.target.value };
+                    setSubtaskDrafts(next);
+                  }}
+                  className="flex-1 text-sm border border-stone-300 rounded px-2 py-1 focus:border-amber-700 focus:outline-none"
+                />
+                <select
+                  value={s.owner_id}
+                  onChange={e => {
+                    const next = [...subtaskDrafts];
+                    next[i] = { ...next[i], owner_id: e.target.value };
+                    setSubtaskDrafts(next);
+                  }}
+                  className="text-sm border border-stone-300 rounded px-2 py-1 max-w-[160px]"
+                >
+                  <option value="">— Responsable —</option>
+                  {activeUsers.map(u => (
+                    <option key={u.id} value={u.id}>{u.full_name}</option>
+                  ))}
+                </select>
+                <select
+                  value={s.priority}
+                  onChange={e => {
+                    const next = [...subtaskDrafts];
+                    next[i] = { ...next[i], priority: e.target.value as TaskPriority };
+                    setSubtaskDrafts(next);
+                  }}
+                  className="text-sm border border-stone-300 rounded px-2 py-1 w-16"
+                >
+                  <option value="P1">P1</option>
+                  <option value="P2">P2</option>
+                  <option value="P3">P3</option>
+                  <option value="P4">P4</option>
+                </select>
+                <input
+                  type="date"
+                  value={s.due_date}
+                  onChange={e => {
+                    const next = [...subtaskDrafts];
+                    next[i] = { ...next[i], due_date: e.target.value };
+                    setSubtaskDrafts(next);
+                  }}
+                  className="text-sm border border-stone-300 rounded px-2 py-1 w-36"
+                />
+                <button
+                  type="button"
+                  onClick={() => setSubtaskDrafts(d => d.filter((_, idx) => idx !== i))}
+                  className="text-stone-400 hover:text-red-600 transition-colors"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+        {subtaskDrafts.length === 0 && (
+          <p className="text-xs text-stone-400">Aucune sous-tâche. Vous pourrez en ajouter après création.</p>
+        )}
+      </div>
+
       {/* PRIVACY */}
-        <PrivacyToggle
-          value={form.is_private}
+        <PrivacyToggle          value={form.is_private}
           onChange={v => setForm({...form, is_private: v})}
         />
 

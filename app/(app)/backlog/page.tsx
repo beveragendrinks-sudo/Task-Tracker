@@ -34,7 +34,7 @@ export default async function BacklogPage({
 
   return (
     <>
-      <Header title="Kanban Board" subtitle="Pilotage visuel des tâches" />
+      <Header title="Backlog Board : Liste des nouvelles tâches" subtitle="Aperçu des nouvelles tâches" />
 
       <div className="p-4 md:p-8">
         <div className="mb-4">

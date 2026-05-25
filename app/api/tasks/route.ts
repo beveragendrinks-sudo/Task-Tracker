@@ -75,14 +75,6 @@ export async function POST(req: NextRequest) {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  // Contributors
-  const contributors: string[] = Array.isArray(body.contributors) ? body.contributors : [];
-  if (contributors.length > 0) {
-    await admin.from('task_contributors').insert(
-      contributors.map((uid: string) => ({ task_id: data.id, user_id: uid, added_by: creatorId }))
-    );
-  }
-
   // Explicit permissions (private tasks only)
   const authorizedUsers: string[] = body.is_private && Array.isArray(body.authorizedUsers) ? body.authorizedUsers : [];
   if (authorizedUsers.length > 0) {

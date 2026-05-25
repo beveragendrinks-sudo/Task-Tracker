@@ -19,7 +19,7 @@ export default async function WorkloadPage({ searchParams }: { searchParams: { e
   // Chefs de département : forcé sur leur entité, pas de filtre libre
   const entityId = isHead ? profile.entity_id : (searchParams.entity_id ?? null);
 
-  const [{ data: users }, { data: entities }, { data: activeTasks }] = await Promise.all([
+  const [{ data: users }, { data: entities }, { data: activeTasks }, { data: activeSubtasks }] = await Promise.all([
     (() => {
       let q = supabase
         .from('profiles')
@@ -33,22 +33,39 @@ export default async function WorkloadPage({ searchParams }: { searchParams: { e
     (() => {
       let q = supabase
         .from('tasks')
-        .select('owner_id, accepted_workload_percent, proposed_workload_percent, status, entity_id')
+        .select('id, owner_id, accepted_workload_percent, proposed_workload_percent, status, entity_id')
         .not('status', 'in', '("approved","cancelled")')
         .not('owner_id', 'is', null);
       if (entityId) q = q.eq('entity_id', entityId);
       return q;
     })(),
+    supabase
+      .from('task_subtasks')
+      .select('owner_id, workload_percent, status, parent_task_id')
+      .not('status', 'in', '("approved","cancelled")')
+      .not('owner_id', 'is', null),
   ]);
 
-  // Somme de la charge par owner
+  // Somme de la charge par owner (tâches)
   const workloadByUser: Record<string, number> = {};
   const taskCountByUser: Record<string, number> = {};
+  // Map taskId → owner_id pour filtrer les sous-tâches par entité et détecter le doublon de responsable
+  const taskOwnerMap: Record<string, string> = {};
   (activeTasks || []).forEach(t => {
     if (!t.owner_id) return;
     const wl = Number(t.accepted_workload_percent ?? t.proposed_workload_percent ?? 0);
     workloadByUser[t.owner_id] = (workloadByUser[t.owner_id] || 0) + wl;
     taskCountByUser[t.owner_id] = (taskCountByUser[t.owner_id] || 0) + 1;
+    taskOwnerMap[t.id] = t.owner_id;
+  });
+  // Ajouter la charge des sous-tâches dont le responsable ≠ responsable de la tâche mère
+  (activeSubtasks || []).forEach(s => {
+    if (!s.owner_id || !s.parent_task_id) return;
+    const parentOwnerId = taskOwnerMap[s.parent_task_id];
+    if (!parentOwnerId) return; // tâche mère hors du filtre entité → ignorer
+    if (s.owner_id === parentOwnerId) return; // même responsable → déjà comptabilisé
+    const wl = Number(s.workload_percent ?? 0);
+    workloadByUser[s.owner_id] = (workloadByUser[s.owner_id] || 0) + wl;
   });
 
   // Pour les chefs de département, tous les users de l'entité sont affichés

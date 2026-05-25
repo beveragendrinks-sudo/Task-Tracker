@@ -1,6 +1,6 @@
 import {
   ClipboardList, Flag, AlertTriangle, Ban, Clock,  Calendar, FileCheck, FileCheck2, Sparkles, PauseCircle,
-  Activity, Users, ChevronRight, Bell
+  Activity, Users, ChevronRight, Bell, CornerDownRight
 } from 'lucide-react';
 import Link from 'next/link';
 import { createClient, getCurrentProfile } from '@/lib/supabase/server';
@@ -22,10 +22,16 @@ export default async function DashboardPage() {
   // Requêtes admin pour le workload — identiques à WorkloadPage
   let wlTasksQuery = supabaseAdmin
     .from('tasks')
-    .select('owner_id, accepted_workload_percent, proposed_workload_percent')
+    .select('id, owner_id, accepted_workload_percent, proposed_workload_percent')
     .not('status', 'in', '("approved","cancelled")')
     .not('owner_id', 'is', null);
   if (headEntityId) wlTasksQuery = wlTasksQuery.eq('entity_id', headEntityId);
+
+  let wlSubtasksQuery = supabaseAdmin
+    .from('task_subtasks')
+    .select('owner_id, workload_percent, status, parent_task_id')
+    .not('status', 'in', '("approved","cancelled")')
+    .not('owner_id', 'is', null);
 
   let wlProfilesQuery = supabaseAdmin
     .from('profiles')
@@ -33,7 +39,7 @@ export default async function DashboardPage() {
     .eq('is_active', true);
   if (headEntityId) wlProfilesQuery = wlProfilesQuery.eq('entity_id', headEntityId);
 
-  const [{ data: tasks }, { data: wlTasks }, { data: wlProfiles }] = await Promise.all([
+  const [{ data: tasks }, { data: wlTasks }, { data: wlProfiles }, { data: wlSubtasks }, { data: pendingSubtasksRaw }] = await Promise.all([
     supabase
       .from('tasks')
       .select(`
@@ -45,6 +51,14 @@ export default async function DashboardPage() {
       .order('created_at', { ascending: false }),
     wlTasksQuery,
     wlProfilesQuery,
+    wlSubtasksQuery,
+    profile
+      ? supabase
+          .from('task_subtasks')
+          .select('id, title, parent_task_id, parent_task:tasks!task_subtasks_parent_task_id_fkey(id, title)')
+          .eq('owner_id', profile.id)
+          .eq('status', 'draft')
+      : Promise.resolve({ data: [] as any[] }),
   ]);
 
   // Tasks assigned to current user waiting for acceptance
@@ -53,6 +67,9 @@ export default async function DashboardPage() {
   const pendingList = profile
     ? tasksList.filter(t => t.owner_id === profile.id && t.status === 'assigned')
     : [];
+
+  // Subtasks assigned to current user waiting for acceptance (status = 'draft')
+  const pendingSubtaskList = (pendingSubtasksRaw || []) as any[];
 
   // KPIs
   const open = tasksList.filter(t => !['approved', 'cancelled'].includes(t.status));
@@ -81,11 +98,22 @@ export default async function DashboardPage() {
   // Calcul de la charge — même logique exacte que WorkloadPage (données admin)
   const workloadByUser: Record<string, number> = {};
   const taskCountByUser: Record<string, number> = {};
+  const taskOwnerMap: Record<string, string> = {};
   (wlTasks || []).forEach(t => {
     if (!t.owner_id) return;
     const wl = Number(t.accepted_workload_percent ?? t.proposed_workload_percent ?? 0);
     workloadByUser[t.owner_id] = (workloadByUser[t.owner_id] || 0) + wl;
     taskCountByUser[t.owner_id] = (taskCountByUser[t.owner_id] || 0) + 1;
+    taskOwnerMap[t.id] = t.owner_id;
+  });
+  // Ajouter la charge des sous-tâches dont le responsable ≠ responsable de la tâche mère
+  (wlSubtasks || []).forEach(s => {
+    if (!s.owner_id || !s.parent_task_id) return;
+    const parentOwnerId = taskOwnerMap[s.parent_task_id];
+    if (!parentOwnerId) return;
+    if (s.owner_id === parentOwnerId) return;
+    const wl = Number(s.workload_percent ?? 0);
+    workloadByUser[s.owner_id] = (workloadByUser[s.owner_id] || 0) + wl;
   });
   // Filtrer les owners via les profils actifs — identique à WorkloadPage
   const activeProfileIds = new Set((wlProfiles || []).map(u => u.id));
@@ -130,6 +158,36 @@ export default async function DashboardPage() {
             <Link
               href="/tasks/mine"
               className="shrink-0 text-sm font-medium px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg transition-colors"
+            >
+              Voir mes tâches
+            </Link>
+          </div>
+        )}
+
+        {/* Banner: sous-tâches à accepter */}
+        {pendingSubtaskList.length > 0 && (
+          <div className="bg-sky-50 border border-sky-300 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center gap-3">
+            <div className="flex items-center gap-3 flex-1 min-w-0">
+              <div className="h-9 w-9 rounded-full bg-sky-100 flex items-center justify-center shrink-0">
+                <CornerDownRight className="h-4 w-4 text-sky-600" />
+              </div>
+              <div className="min-w-0">
+                <div className="font-semibold text-sky-900 text-sm">
+                  {pendingSubtaskList.length === 1
+                    ? 'Vous avez 1 nouvelle sous-tâche à accepter'
+                    : `Vous avez ${pendingSubtaskList.length} nouvelles sous-tâches à accepter`}
+                </div>
+                <div className="text-xs text-sky-700 mt-0.5 truncate">
+                  {pendingSubtaskList.map((s: any) => {
+                    const parentTitle = s.parent_task?.title;
+                    return parentTitle ? `${s.title} (${parentTitle})` : s.title;
+                  }).join(' · ')}
+                </div>
+              </div>
+            </div>
+            <Link
+              href="/tasks/mine"
+              className="shrink-0 text-sm font-medium px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-lg transition-colors"
             >
               Voir mes tâches
             </Link>

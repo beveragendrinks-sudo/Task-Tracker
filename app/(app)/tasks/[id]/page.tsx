@@ -1,5 +1,5 @@
 import { notFound, redirect } from 'next/navigation';
-import { ArrowLeft, Calendar, User, Building2, Briefcase, AlertTriangle, Sparkles, CheckSquare, Users as UsersIcon, Lock } from 'lucide-react';
+import { ArrowLeft, Calendar, User, Building2, Briefcase, AlertTriangle, Sparkles, CheckSquare, Lock } from 'lucide-react';
 import { createClient, getCurrentProfile } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import Header from '@/components/Header';
@@ -69,13 +69,22 @@ export default async function TaskDetailPage({ params }: { params: { id: string 
   const negotiationReason = negotiationEntry?.reason || null;
   const negotiationFrom = (negotiationEntry as any)?.changed_by_profile?.full_name || null;
 
+  // Charger les permissions explicites (tâche privée) — admin client pour bypass RLS
+  const adminForPerms = createAdminClient();
+  const { data: taskPerms } = task.is_private
+    ? await adminForPerms
+        .from('task_permissions')
+        .select('*, profile:profiles!task_permissions_user_id_fkey(id, full_name, job_title)')
+        .eq('task_id', task.id)
+    : { data: [] as any[] };
+
   // Sécurité : si tâche privée et user non autorisé → redirect
   // (Normalement RLS bloque, donc task serait null. Sécurité supplémentaire.)
   const isAuthorized =
     !task.is_private ||
     task.created_by === profile.id ||
     task.owner_id === profile.id ||
-    (task.permissions || []).some((p: any) => p.user_id === profile.id);
+    (taskPerms || []).some((p: any) => p.user_id === profile.id);
 
   if (!isAuthorized) {
     return (
@@ -100,7 +109,7 @@ export default async function TaskDetailPage({ params }: { params: { id: string 
 
   // Sous-tâches — admin client pour éviter tout blocage RLS
   // (l'autorisation est déjà vérifiée ci-dessus via isAuthorized)
-  const admin = createAdminClient();
+  const admin = adminForPerms;
   const { data: subtasks } = await admin
     .from('task_subtasks')
     .select('*')
@@ -166,28 +175,6 @@ export default async function TaskDetailPage({ params }: { params: { id: string 
             currentProfile={profile as any}
             canCreate={canCreateSubtask}
           />
-
-          
-          {/* Contributeurs */}
-          {(task as any).contributors?.length > 0 && (
-            <div className="bg-sap-surface border border-sap-border rounded shadow-sap-tile">
-              <div className="px-4 py-2.5 border-b border-sap-border flex items-center gap-2">
-                <UsersIcon className="h-4 w-4 text-sap-text-secondary" />
-                <h2 className="text-xs font-semibold uppercase tracking-wider text-sap-text-secondary">Contributeurs</h2>
-              </div>
-              <div className="p-4 space-y-2">
-                {(task as any).contributors.map((c: any) => (
-                  <div key={c.user_id} className="flex items-center gap-3">
-                    <Avatar name={c.profile.full_name} size="sm" />
-                    <div className="min-w-0">
-                      <div className="text-sm text-sap-text">{c.profile.full_name}</div>
-                      <div className="text-xs text-sap-text-secondary">{c.profile.job_title}</div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
 
           {/* Audit trail */}
           {history && history.length > 0 && (
@@ -296,7 +283,7 @@ export default async function TaskDetailPage({ params }: { params: { id: string 
             <PermissionsManager
               resourceType="task"
               resourceId={task.id}
-              permissions={(task as any).permissions || []}
+              permissions={(taskPerms || []) as any}
               availableUsers={(users || []) as any}
               canManage={canManagePerms}
             />

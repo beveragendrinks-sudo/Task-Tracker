@@ -34,7 +34,7 @@ export default async function KanbanPage({
 
   return (
     <>
-      <Header title="Kanban Board" subtitle="Pilotage visuel des tâches" />
+      <Header title="Kanban Board : Liste des tâches en cours" subtitle="Pilotage visuel des tâches en cours" />
 
       <div className="p-4 md:p-8">
         <div className="mb-4">

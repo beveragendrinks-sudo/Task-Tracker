@@ -10,7 +10,7 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
-  title: 'Task Engine — ELKATEB Group ',
+  title: 'Task Tracker — ELKATEB Group ',
   description: 'Gestion des tâches, engagements et workload pour groupe industriel',
   icons: {
     icon: '/favicon.svg'

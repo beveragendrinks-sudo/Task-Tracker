@@ -112,7 +112,6 @@ export interface TaskWithRelations extends Task {
   primary_department?: Department;
   creator?: Profile;
   owner?: Profile;
-  contributors?: { user_id: string; profile: Profile }[];
   permissions?: TaskPermission[];
   subtasks?: Subtask[];
 }
